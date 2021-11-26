@@ -3,7 +3,7 @@
 Trajectory Reconstruction Tradeoff
 ==================================
 
-.. image:: .images/fig1.png
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.png
    :width: 300px
    :align: center
 
