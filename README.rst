@@ -4,7 +4,7 @@ Trajectory Reconstruction Tradeoff
 ==================================
 
 .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.png
-   :width: 300px
+   :width: 500px
    :align: center
 
 Considering the limited sequencing budget in single-cell RNA-sequencing experiments,
