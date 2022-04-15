@@ -63,6 +63,29 @@ def simulate(newick_string, alpha=0.3, beta=2, n_resample=1, modules=30, genes=5
     return X, D0, meta
 
 
+
+def curve_trajectory(nc, R=100):
+    """
+    Generate latent representation of a curve
+    :param nc:
+    :param R:
+    :return:
+    """
+    nc = int(nc/2)
+    theta = np.linspace(0, np.pi, nc)
+    dtheta = theta[1] - theta[0]
+    d0 = R * dtheta
+
+    x = R * np.sin(theta)
+    y = R * np.cos(theta)
+
+    # x = np.hstack((np.linspace(-314, 0, nc), x))
+    # y = np.hstack((np.linspace(100, 100, nc), y))
+    x = np.hstack((np.linspace(-nc, 0, nc), x))  # setting constant dist 1 for linear part
+    y = np.hstack((np.linspace(R, R, nc), y))
+    pX = np.vstack((x, y)).T
+    return pX
+
 if __name__ == '__main__':
     newick_string = '(((A:250)B:250)C:250)D:250;'
     X, D0, meta = simulate(newick_string=newick_string, return_meta=True)

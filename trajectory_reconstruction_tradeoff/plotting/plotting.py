@@ -55,8 +55,8 @@ def plot_pca2d(expr_red, meta=None, color=None, sigma_expr=None, color_sigma='b'
 
 
 def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability',
-                  color_mean='navy', color_std='royalblue', color_min=None,
-                  ax=None, pc_opt=None):
+                  color_mean='navy', color_std='royalblue', color_min=None, plot_std=2,
+                  ax=None, pc_opt=None, title=None, label=''):
     """
     Plot opt - reconstruction error as the opt bw pc and pt shifts under constant budget
     :param L: dataframe with sampling parameters and errors
@@ -71,14 +71,16 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability',
     y = L_by_xcol.mean().values
     x = L_by_xcol.mean().index.values
 
-    ax.plot(x, y, color=color_mean, linewidth=3)
-    ax.fill_between(x, np.array(y) + np.array(s_y), y, color=color_std, alpha=0.3)
-    ax.fill_between(x, np.array(y) - np.array(s_y), y, color=color_std, alpha=0.3)
-    ax.fill_between(x, np.array(y) + 2 * np.array(s_y), y, color=color_std, alpha=0.15)
-    ax.fill_between(x, np.array(y) - 2 * np.array(s_y), y, color=color_std, alpha=0.15)
+    ax.plot(x, y, color=color_mean, linewidth=3, label=label)
+    for i in range(plot_std):
+        v = (i + 1)
+        ax.fill_between(x, np.array(y) + v * np.array(s_y), y, color=color_std, alpha=0.3/v)
+        ax.fill_between(x, np.array(y) - v * np.array(s_y), y, color=color_std, alpha=0.3/v)
 
-    ax.set_xlabel(xlabel);
-    ax.set_ylabel('Smoothed reconstruction error');
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel('Smoothed reconstruction error')
+    if title is not None:
+        ax.set_title(title)
 
     if pc_opt is not None:
         color_min = color_mean if color_min is None else color_min

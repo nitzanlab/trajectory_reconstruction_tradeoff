@@ -13,9 +13,8 @@ class Trajectory():
     """
     Trajectory object
     """
-    n_comp = 10
 
-    def __init__(self, X, D=None, meta=None, outdir=None):
+    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, n_comp=10):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
@@ -32,32 +31,59 @@ class Trajectory():
             cellnames = ['c%d' % i for i in range(self.ncells)]
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
         self.X = X
-        self.pX = Trajectory.preprocess(self.X)
+        self.do_preprocess = do_preprocess
+        if do_log1p and do_sqrt:
+            ValueError('Should do either log1p or sqrt for preprocess')
+        self.do_log1p = do_log1p
+        self.do_sqrt = do_sqrt
+        self.n_comp = n_comp
+        self.pX = self.preprocess(self.X)
 
         if D is None:
             D = T.ds.get_pairwise_distances(self.pX)[0]
         D = D / np.max(D)
 
         self.D = D
-        self.meta = meta
+        self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
         self.outdir = outdir
 
-    @staticmethod
-    def set_n_comp(n_comp):
+
+    def set_n_comp(self, n_comp):
         """
         Edit number of components
         :param n_comp:
         """
-        Trajectory.n_comp = n_comp
+        self.n_comp = n_comp
 
-    @staticmethod
-    def preprocess(X, n_comp=n_comp):
+
+    def set_log1p(self, do_log1p):
+        """
+        Set whether to apply log1p
+        :param do_log1p:
+        """
+        self.do_log1p = do_log1p
+
+
+    def preprocess(self, X, verbose=False):
         """
         Standard preprocess
         """
-        pca = PCA(n_components=n_comp, svd_solver='full')
-        pX = pca.fit_transform(np.log1p(X))
+        if not self.do_preprocess:
+            if verbose:
+                print('no preprocess')
+            return X.copy()
+        pca = PCA(n_components=self.n_comp, svd_solver='full')
+        lX = X.copy()
+        if self.do_log1p:
+            if verbose:
+                print('do_log1p')
+            lX = np.log1p(X)
+        if self.do_sqrt:
+            if verbose:
+                print('do_sqrt')
+            lX = np.sqrt(X)
+        pX = pca.fit_transform(lX)
         return pX
 
     def get_hvgs(self, n_hvgs=1000, **kwargs):
@@ -88,7 +114,9 @@ class Trajectory():
         sX = sX.astype(int)
         cellnames = sX.index
         genenames = sX.columns
-        sX = pd.DataFrame(np.random.binomial(sX, pt), index=cellnames, columns=genenames)
+        if pt < 1:
+            sX = np.random.binomial(sX, pt)
+        sX = pd.DataFrame(sX, index=cellnames, columns=genenames)
         return sX, ix
 
     def subsample(self, pc, pt):
@@ -110,13 +138,57 @@ class Trajectory():
         sD = self.D[ix][:, ix]  # subsampled ground truth pairwise distances
         sD = sD / np.max(sD)
 
-        psX = Trajectory.preprocess(sX)
-        psD, _ = T.ds.get_pairwise_distances(psX)
+        psX = self.preprocess(sX)
+        psD = T.ds.get_pairwise_distances(psX)[0]
         return sX, psX, psD, sD, ix
 
+    def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
+        """
+        Filtering downsampling params
+        :param B:
+        :param Pc:
+        :param Pt:
+        :return:
+        """
+        if (Pc is None) and (Pt is None):
+            ValueError('Need to set Pc or Pt')
+        if Pt is None:
+            Pt = [B / pc for pc in Pc]
+        if Pc is None:
+            Pc = [B / pt for pt in Pt]
 
-    def compute_tradeoff(self, B, Pc, Pt=None, repeats=50, verbose=False, plot=False,
-                         comp_pseudo_corr=False, comp_exp_corr=False, hvgs=None, n_buckets=10):
+        dws_params = pd.DataFrame({'pc': Pc, 'pt': Pt})
+
+        if B > 1:
+            ValueError('B needs to be smaller than 1')
+
+        cond = dws_params['pc'] < 1 / self.ncells
+        if np.any(cond):
+            if verbose: print('Restricting Pc to range of available cells')
+            dws_params = dws_params[~cond]
+
+        cond = dws_params['pc'] < B
+        if np.any(cond):
+            if verbose: print('Restricting Pc to budget limit')
+            dws_params = dws_params[~cond]
+
+        cond = dws_params['pt'] > 1
+        if np.any(cond):
+            if verbose: print('Restricting Pt to 1')
+            dws_params = dws_params[~cond]
+
+        cond = dws_params['pt'] < epsilon
+        if np.any(cond):
+            if verbose: print('Pt may be too low')
+
+        if dws_params.shape[0] == 0:
+            ValueError('All params were filtered out')
+
+        return dws_params
+
+    def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
+                         comp_pseudo_corr=False, comp_exp_corr=False, comp_deltas=False,
+                         hvgs=None, n_buckets=10):
         """
         Compute reconstruction error for subsampled data within budget opt
         :param X: counts data
@@ -129,14 +201,8 @@ class Trajectory():
         :return:
             dataframe with sampling params and errors
         """
-        Pt = [B / pc for pc in Pc] if Pt is None else Pt
-        if np.any([pt < epsilon for pt in Pt]): # TODO: change condition
-            print('Pt is too low')
-            return
 
-        if np.any([pc < 1/self.ncells for pc in Pc]):
-            print('Restricting Pc to range of available cells')
-            Pc = [pc for pc in Pc if pc > 1/self.ncells]
+        dws_params = self._downsample_params(B, Pc, Pt, verbose)
 
         if comp_pseudo_corr or comp_exp_corr:
             self.meta['dpt'] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX)
@@ -160,7 +226,11 @@ class Trajectory():
         for k in range(repeats):
             if verbose:
                 print(k)
-            for pc, pt in zip(Pc, Pt):
+            for _, row in dws_params.iterrows():
+
+                pc = row['pc']
+                pt = row['pt']
+
                 # sample
                 sX, psX, psD, sD, ix = self.subsample(pc, pt)
                 smeta = self.meta.iloc[ix].copy()
@@ -171,6 +241,10 @@ class Trajectory():
                 report = {'pc': pc, 'pt': pt, 'B': B,
                           'l1': l1, 'l2': l2, 'l3': l3, 'lsp': lsp}
 
+                if comp_deltas:
+                    Delta_vals = psX.max(0) - psX.min(0)
+                    Deltas = {'Delta%d' % i: Delta_vals[i] for i in np.arange(psX.shape[1])}
+                    report = {**report, **Deltas}
 
                 if comp_pseudo_corr or comp_exp_corr:
                     pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
@@ -197,19 +271,23 @@ class Trajectory():
 
 
 
-# if __name__ == '__main__':
-#     ncells = 1000
-#     nsegs = 5
-#     nper_seg = int(ncells / nsegs)
-#     newick = '((((A:%d)B:%d)C:%d)D:%d)E:%d;' % ((nper_seg,) * nsegs)
-#
-#     X, D_true, meta = T.io.simulate(newick)
-#     X = pd.DataFrame(X)
-#
-#     adata = sc.AnnData(X)
-#     adata.obs = meta.loc[X.index]
-#     sc.pp.log1p(adata)
-#     sc.tl.pca(adata)  # recomputing since 10 pcs give disconnected pseudotime
+if __name__ == '__main__':
+    # size_factor = 5
+    # T.io.set_size_factor(size_factor=size_factor)
+    ncells = 1000
+    nsegs = 5
+    nper_seg = int(ncells / nsegs)
+    newick = "((C:%d)B:%d,(D:%d)E:%d)A:%d;" % ((nper_seg,) * nsegs)
+    # newick = '((((A:%d)B:%d)C:%d)D:%d)E:%d;' % ((nper_seg,) * nsegs)
+
+    X, D_true, meta = T.io.simulate(newick)
+    X = pd.DataFrame(X)
+
+    adata = sc.AnnData(X)
+    adata.obs = meta.loc[X.index]
+    sc.pp.log1p(adata)
+    sc.tl.pca(adata)  # recomputing since 10 pcs give disconnected pseudotime
+    sc.pl.pca(adata)
 #     sc.pp.neighbors(adata, method='gauss', use_rep='X_pca')
 #     sc.tl.diffmap(adata)
 #     adata.uns['iroot'] = 0  # np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0]
@@ -217,14 +295,15 @@ class Trajectory():
 #     sc.pl.pca(adata, color=['pseudotime', 'dpt_pseudotime'])
 #     print(np.corrcoef(adata.obs['pseudotime'], adata.obs['dpt_pseudotime'])[0][1])
 #
-#     dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'
-#     X.to_csv(os.path.join(dirname, 'counts_prosstt.csv'))
+    # dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'
+    # dataset = 'prosstt_sf%d' % size_factor
+    # X.to_csv(os.path.join(dirname, 'counts_%s.csv' % dataset))
 #
-#     meta.to_csv(os.path.join(dirname, 'prosstt_cell_info.csv'))
+    # meta.to_csv(os.path.join(dirname, '%s_cell_info.csv' % dataset))
 #
-#     D_true = pd.DataFrame(D_true, columns=X.index, index=X.index)
-#     D_true.to_csv(os.path.join(dirname, 'geodesic_prosstt.csv'))
-#     print('done')
+    # D_true = pd.DataFrame(D_true, columns=X.index, index=X.index)
+    # D_true.to_csv(os.path.join(dirname, 'geodesic_%s.csv' % dataset))
+    print('done')
 #
 #     # traj = Trajectory(X, D_true)
 #     # traj = Trajectory(X, D_true, meta=meta)
