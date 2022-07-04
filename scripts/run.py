@@ -18,7 +18,7 @@ random.seed(20)
 # trajectory params
 dirname = '/cs/labs/mornitzan/nomoriel/trajectory_reconstruction_tradeoff/'
 datadir = os.path.join(dirname, 'datasets')
-outdir = os.path.join(dirname, 'output_new' )
+outdir = os.path.join(dirname, 'output_new2' )
 
 
 def parse():
@@ -26,7 +26,7 @@ def parse():
     Parse user arguments
     """
     parser = argparse.ArgumentParser(description='Optional app description')
-    # parser.add_argument('dataset', type=str, help='Dataset name, e.g. hepatoblasts')
+    parser.add_argument('dataset', type=str, help='Dataset name, e.g. hepatoblasts')
     parser.add_argument('--datadir', type=str, default=datadir, help='Data directory')
     parser.add_argument('--outdir', type=str, default=outdir, help='Output directory')
     
