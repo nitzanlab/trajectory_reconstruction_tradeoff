@@ -21,11 +21,11 @@ def get_pairwise_distances_branch(pseudotime, branch, branch_time_dict):
                 D[i, j] = pseudotime[i] + pseudotime[j] - 2 * branch_time_dict[(branch[i], branch[j])]
             else:
                 D[i, j] = pseudotime[i] + pseudotime[j] - 2 * min(pseudotime[i], pseudotime[j])
-    dmax = np.max(D)
-    D = D / dmax
-    return D, dmax
+    # dmax = np.max(D) # TODO: BIG CHANGE
+    # D = D / dmax
+    return D
 
-def get_pairwise_distances(expr_red):
+def get_pairwise_distances(expr_red, return_predecessors=False):
     """
     Computes cells geodesic distances as shortest path in the minimal-fully-connected kNN graph
     :param expr_red: cells expression
@@ -38,10 +38,34 @@ def get_pairwise_distances(expr_red):
     while (np.sum(D) == np.inf):
         neighbors = neighbors + 1
         A = kneighbors_graph(expr_red, neighbors, mode='distance', metric='euclidean', include_self=True)
-        D = dijkstra(csgraph=A, directed=False, return_predecessors=False)
-    dmax = np.max(D)
-    D = D/dmax
-    return D, dmax
+        DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
+        D = DP[0] if return_predecessors else DP
+    
+    # dmax = np.max(D) # dmax = np.max(D) # TODO: BIG CHANGE
+    # D = D / dmax
+    return DP #, dmax
+
+def compute_path_vertex_length(P):
+    """
+    Given dijkstra's predecessors matrix, computes the number of vertices along each path.
+    :return:
+    """
+    n = len(P)
+    # V = np.full_like(P, np.inf, dtype=np.double)
+    V = np.zeros_like(P)
+    # right now n^3 so pretty bad...
+    for i1 in range(n):
+        for i2 in np.arange(i1, n): # assuming symmetry
+            i = i1
+            n_vertices = 0
+        
+            while (i != i2) and (n_vertices < n):
+                i = P[i2, i]
+                n_vertices += 1
+            # print(i1, i2, n_vertices)
+            V[i1, i2] = n_vertices
+    V = V + V.T
+    return V
 
 def dist_by_graph(G, cluster_labels):
     """

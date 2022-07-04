@@ -1,23 +1,39 @@
 import os
+import scanpy as sc
 import pandas as pd
 import numpy as np
 
 def read_dataset(dataset, dirname):
     """
-
+    Reads dataset
     :param dataset:
     :param dirname:
     :return:
+    - X
+    - D
+    - meta
     """
     fname_counts = os.path.join(dirname, 'counts_%s.csv' % dataset)
     fname_dists = os.path.join(dirname, 'geodesic_%s.csv' % dataset)
     fname_meta = os.path.join(dirname, '%s_cell_info.csv' % dataset)
     fname_milestone = os.path.join(dirname, '%s_milestone_network.csv' % dataset)
-    return read_data(fname_counts, fname_dists, fname_meta, fname_milestone)
+
+    fname_anndata = os.path.join(dirname, '%s.h5ad' % dataset)
+    D = None
+
+    if os.path.isfile(fname_counts):
+        X, D, meta = read_data(fname_counts, fname_dists, fname_meta, fname_milestone)
+    elif os.path.join(fname_anndata):
+
+        adata = sc.read_h5ad(os.path.join(dirname, f'{dataset}.h5ad'))
+        X = adata.X
+        meta = adata.obs
+    return X, D, meta
+
 
 def read_data(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
     """
-    Read and prepare counts and distance matrices
+    Read and prepare counts and distance matrices from csv files
     :param fname_counts:
     :param fname_dists:
     :return:

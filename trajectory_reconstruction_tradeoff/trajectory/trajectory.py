@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 import trajectory_reconstruction_tradeoff as T
-# from trajectory_reconstruction_tradeoff import plotting as P
 from sklearn.decomposition import PCA
-# from trajectory_reconstruction_tradeoff.distances.compute_dists import get_pairwise_distances
+from scipy.spatial.distance import pdist
 epsilon = 10e-10
 
 
@@ -14,7 +13,7 @@ class Trajectory():
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, n_comp=10):
+    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, n_comp=10, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
@@ -28,7 +27,7 @@ class Trajectory():
                 return
         if not isinstance(X, pd.DataFrame):
             genenames = ['g%d' % i for i in range(self.ngenes)]
-            cellnames = ['c%d' % i for i in range(self.ncells)]
+            cellnames = ['c%d' % i for i in range(self.ncells)] if meta is None else meta.index
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
         self.X = X
         self.do_preprocess = do_preprocess
@@ -40,14 +39,19 @@ class Trajectory():
         self.pX = self.preprocess(self.X)
 
         if D is None:
-            D = T.ds.get_pairwise_distances(self.pX)[0]
+            D,P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
+        else: # is this fair?
+            print('here')
+            _,P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
         D = D / np.max(D)
 
+        self.P = P # predecessors
+        self.V = None # heavy to compute so only if necessary
         self.D = D
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
         self.outdir = outdir
-
+        self.name = name
 
     def set_n_comp(self, n_comp):
         """
@@ -136,11 +140,13 @@ class Trajectory():
         """
         sX, ix = self.subsample_counts(pc, pt)
         sD = self.D[ix][:, ix]  # subsampled ground truth pairwise distances
-        sD = sD / np.max(sD)
+        # sD_max = np.max(sD) #TODO: BIG CHANGE
+        # sD = sD / sD_max
 
         psX = self.preprocess(sX)
-        psD = T.ds.get_pairwise_distances(psX)[0]
-        return sX, psX, psD, sD, ix
+        psD, psP = T.ds.get_pairwise_distances(psX, return_predecessors=True) #TODO: BIG CHANGE , psD_max
+        
+        return sX, psX, psD, sD, psP, ix
 
     def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
         """
@@ -162,9 +168,10 @@ class Trajectory():
         if B > 1:
             ValueError('B needs to be smaller than 1')
 
-        cond = dws_params['pc'] < 1 / self.ncells
+        min_cells = self.n_comp if self.do_preprocess else 1
+        cond = dws_params['pc'] < min_cells / self.ncells
         if np.any(cond):
-            if verbose: print('Restricting Pc to range of available cells')
+            if verbose: print('Restricting Pc to range of available cells/PC dimensions')
             dws_params = dws_params[~cond]
 
         cond = dws_params['pc'] < B
@@ -186,9 +193,79 @@ class Trajectory():
 
         return dws_params
 
+
+    def evaluate(self, sX, psX, psD, sD, psP, ix, comp_deltas=True, comp_nn_dist=True, 
+                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False):
+        """
+        
+        """
+        nc = sX.shape[0]
+        nr = sX.sum(1).mean()
+        
+        smeta = self.meta.iloc[ix].copy()
+
+        dmax_psD = np.max(psD); npsD = psD / dmax_psD
+        dmax_sD = np.max(sD); nsD = sD / dmax_sD
+
+        # compute error
+        l1, l2, l3, lsp = T.ds.compare_distances(npsD, nsD)
+
+        
+        report = {'nc': nc, 'nr': nr, 
+                  'l1': l1, 'l2': l2, 'l3': l3, 'lsp': lsp, 
+                  'dmax_psD': dmax_psD, 'dmax_sD': dmax_sD}
+
+        if comp_deltas:
+            Delta_vals = psX.max(0) - psX.min(0)
+            Deltas = {'Delta%d' % i: Delta_vals[i] for i in np.arange(psX.shape[1])}
+            report = {**report, **Deltas}
+            report['Delta'] = pdist(psX).max()
+
+        if comp_nn_dist:
+            idxmin = (sD + sD.max() * np.eye(nc)).argmin(0)
+            report['nn_dist_sD'] = sD[np.arange(nc), idxmin].mean()
+            report['nn_dist_nsD'] = nsD[np.arange(nc), idxmin].mean()
+
+            report['nn_diff_n'] = np.abs((nsD - npsD))[np.arange(nc), idxmin].mean()
+
+            idxmin = (psD + psD.max() * np.eye(nc)).argmin(0)
+            report['nn_dist_psD'] = psD[np.arange(nc), idxmin].mean()
+            report['nn_dist_npsD'] = npsD[np.arange(nc), idxmin].mean()
+
+        if comp_pseudo_corr or comp_exp_corr:
+            pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
+            dpt_corr = np.corrcoef(smeta['dpt'], pseudo)[0, 1]
+            report['dpt_corr'] = dpt_corr
+
+        if comp_vertex_length:
+            psV = T.ds.compute_path_vertex_length(psP)
+            ratio_n_vertices = (psV / nc) / (self.V[ix][:, ix] / self.ncells) # handling disconnections?
+            ratio_n_vertices[range(nc), range(nc)] = 0
+            weights = np.ones((nc, nc)) - np.eye(nc)
+            avg_ratio_n_vertices = np.average(ratio_n_vertices, weights=weights) 
+            
+            # import matplotlib.pyplot as plt
+            # plt.clf(); plt.hist((self.V[ix][:, ix]).flatten(), alpha=0.5); 
+            # plt.hist(psV.flatten(), alpha=0.5); 
+            # plt.title(f'{self.name}, avg ratio number vertices: {avg_ratio_n_vertices}')
+            # plt.savefig(f'dummy_{self.name}.png')
+            
+            report['avg_ratio_n_vertices'] = avg_ratio_n_vertices
+        
+        # if comp_exp_corr:
+        #     or_s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], smeta['dpt'], n_buckets=n_buckets)
+        #     s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], pseudo, n_buckets=n_buckets)
+        #     or_exp_corr = T.dw.expression_correlation(bucket_mean, or_s_bucket_mean)
+        #     exp_corr = T.dw.expression_correlation(bucket_mean, s_bucket_mean)
+        #     report['exp_corr'] = exp_corr
+        #     report['or_exp_corr'] = or_exp_corr
+
+        return report
+
+
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
-                         comp_pseudo_corr=False, comp_exp_corr=False, comp_deltas=False,
-                         hvgs=None, n_buckets=10):
+                         comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, 
+                         hvgs=None, n_buckets=10, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
         :param X: counts data
@@ -203,6 +280,9 @@ class Trajectory():
         """
 
         dws_params = self._downsample_params(B, Pc, Pt, verbose)
+
+        if comp_vertex_length and self.V is None:
+            self.V = T.ds.compute_path_vertex_length(self.P)
 
         if comp_pseudo_corr or comp_exp_corr:
             self.meta['dpt'] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX)
@@ -232,39 +312,23 @@ class Trajectory():
                 pt = row['pt']
 
                 # sample
-                sX, psX, psD, sD, ix = self.subsample(pc, pt)
-                smeta = self.meta.iloc[ix].copy()
-
-                # compute error
-                l1, l2, l3, lsp = T.ds.compare_distances(psD, sD)
-
-                report = {'pc': pc, 'pt': pt, 'B': B,
-                          'l1': l1, 'l2': l2, 'l3': l3, 'lsp': lsp}
-
-                if comp_deltas:
-                    Delta_vals = psX.max(0) - psX.min(0)
-                    Deltas = {'Delta%d' % i: Delta_vals[i] for i in np.arange(psX.shape[1])}
-                    report = {**report, **Deltas}
-
-                if comp_pseudo_corr or comp_exp_corr:
-                    pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
-                    dpt_corr = np.corrcoef(smeta['dpt'], pseudo)[0, 1]
-                    report['dpt_corr'] = dpt_corr
-
-                if comp_exp_corr:
-                    or_s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], smeta['dpt'], n_buckets=n_buckets)
-                    s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], pseudo, n_buckets=n_buckets)
-                    or_exp_corr = T.dw.expression_correlation(bucket_mean, or_s_bucket_mean)
-                    exp_corr = T.dw.expression_correlation(bucket_mean, s_bucket_mean)
-                    report['exp_corr'] = exp_corr
-                    report['or_exp_corr'] = or_exp_corr
-
-
+                try:
+                    subsample_result = self.subsample(pc, pt)
+                except np.linalg.LinAlgError as err:
+                    if verbose:
+                        print(f'When downsampling with cell probability {pc} and read probability {pt}, got LinAlgError.')
+                    continue
+                
+                report = self.evaluate(*subsample_result,
+                         comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
+                         **kwargs)
+                         
+                report = {'pc': pc, 'pt': pt, 'B': B, 'log pc': np.log(pc), 'log pt': np.log(pt), **report}
                 L.append(report)
 
-                if plot and (k == 0):
-                    tit = 'B = %.5f, pc = %.5f, pt = %.5f \n l1 = %.2f, l2 = %.2f' % (B, pc, pt, l1, l2)
-                    T.pl.plot_pca2d(psX, title=tit)
+                # if plot and (k == 0):
+                #     tit = 'B = %.5f, pc = %.5f, pt = %.5f \n l1 = %.2f, l2 = %.2f' % (B, pc, pt, l1, l2)
+                #     T.pl.plot_pca2d(psX, title=tit)
 
         L = pd.DataFrame(L)
         return L
@@ -303,8 +367,9 @@ if __name__ == '__main__':
 #
     # D_true = pd.DataFrame(D_true, columns=X.index, index=X.index)
     # D_true.to_csv(os.path.join(dirname, 'geodesic_%s.csv' % dataset))
-    print('done')
+    
 #
 #     # traj = Trajectory(X, D_true)
-#     # traj = Trajectory(X, D_true, meta=meta)
-#     # traj.compute_tradeoff(0.002, [0.3])
+    traj = Trajectory(X, D_true, meta=meta)
+    traj.compute_tradeoff(0.002, [0.3])
+    print('done')

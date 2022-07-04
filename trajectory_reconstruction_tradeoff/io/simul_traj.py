@@ -1,3 +1,4 @@
+from re import L
 import pandas as pd
 import numpy as np
 from trajectory_reconstruction_tradeoff.distances.compute_dists import get_pairwise_distances, get_pairwise_distances_branch
@@ -34,7 +35,7 @@ def get_branch_time_dict(newick_string, root='A'):
             branch_time_dict[(l2, l1)] = tree.trace(root, root)[0].branch_length + tree.distance(tree.common_ancestor(l2, l1).name)
     return branch_time_dict, labels
 
-def simulate(newick_string, alpha=0.3, beta=2, n_resample=1, modules=30, genes=500, root='A'):
+def prosstt_trajectory(newick_string, alpha=0.3, beta=2, n_resample=1, modules=30, genes=500, root='A'):
     """
     Simulate tree using Prosstt
     :return:
@@ -56,12 +57,13 @@ def simulate(newick_string, alpha=0.3, beta=2, n_resample=1, modules=30, genes=5
 
     X, pseudotime, branch, scalings = sim.sample_whole_tree(t, n_resample, alpha=alpha, beta=beta)
 
-    D0, _ = get_pairwise_distances_branch(pseudotime, branch, branch_time_dict)
+    D0 = get_pairwise_distances_branch(pseudotime, branch, branch_time_dict)
     meta = pd.DataFrame({'pseudotime': pseudotime, 'branch': branch, 'scalings': scalings})
 
     X = pd.DataFrame(X)
     return X, D0, meta
 
+simulate = prosstt_trajectory # Defaults simulation to PROSSTT
 
 
 def curve_trajectory(nc, R=100):
@@ -86,6 +88,21 @@ def curve_trajectory(nc, R=100):
     pX = np.vstack((x, y)).T
     return pX
 
+def line_trajectory(nc, endpoint1=(10,0), endpoint2=(0,10), std=1, nonneg=True):
+    """
+    """
+    t = (np.arange(nc) / nc).reshape(-1, 1)
+
+    endpoint1 = np.array(endpoint1).reshape(1, -1)
+    endpoint2 = np.array(endpoint2).reshape(1, -1)
+    ngenes = np.maximum(len(endpoint1), len(endpoint2))
+
+    X = (1-t) * endpoint1 + (t) * endpoint2 + np.random.normal(scale=std, size=(nc, ngenes))
+    if nonneg:
+        X = np.maximum(X,0)
+    return X
+
+
 if __name__ == '__main__':
     newick_string = '(((A:250)B:250)C:250)D:250;'
-    X, D0, meta = simulate(newick_string=newick_string, return_meta=True)
+    X, D0, meta = prosstt_trajectory(newick_string=newick_string, return_meta=True)
