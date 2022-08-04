@@ -1,0 +1,14 @@
+*.png
+*.ipynb_checkpoints
+*__pycache__
+*.idea
+*.csv
+geckodriver.log
+*.pptx
+*.html
+*.gif
+*.h5
+*.mat
+*.txt
+*.txt.gz
+*.pyc

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import networkx as nx
+import matplotlib.pylab as plt
 from sklearn.neighbors import kneighbors_graph
 from scipy.sparse.csgraph import dijkstra
 
@@ -25,25 +26,40 @@ def get_pairwise_distances_branch(pseudotime, branch, branch_time_dict):
     # D = D / dmax
     return D
 
-def get_pairwise_distances(expr_red, return_predecessors=False):
+def get_pairwise_distances(pX, return_predecessors=False, plot=False, verbose=False):
     """
     Computes cells geodesic distances as shortest path in the minimal-fully-connected kNN graph
-    :param expr_red: cells expression
+    :param pX: cells reduced representation 
     :return:
         distances( normalized)
         max dist
     """
     D = np.inf
     neighbors = 2
+    pX = pX.values if isinstance(pX, pd.DataFrame) else pX
     while (np.sum(D) == np.inf):
         neighbors = neighbors + 1
-        A = kneighbors_graph(expr_red, neighbors, mode='distance', metric='euclidean', include_self=True)
+        A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=True)
         DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
         D = DP[0] if return_predecessors else DP
     
     # dmax = np.max(D) # dmax = np.max(D) # TODO: BIG CHANGE
     # D = D / dmax
-    return DP #, dmax
+    if verbose:
+        print(f'Running with {neighbors} neighbors')
+
+    if plot:
+        G = nx.from_numpy_matrix(A.todense()>0)
+        pos = nx.spring_layout(G)
+        edge_weight = list(nx.get_edge_attributes(G,'weight').values())
+
+        pos = {}
+        for inode,node in enumerate(G.nodes()):
+            pos[node] = [pX[inode,0], pX[inode,1]]
+        nx.draw(G,pos, width=edge_weight, node_size=3)
+        plt.show()
+        
+    return DP #, TODO: temp neighbors dmax
 
 def compute_path_vertex_length(P):
     """

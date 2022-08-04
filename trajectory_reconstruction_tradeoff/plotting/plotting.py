@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import matplotlib
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trajectory_reconstruction_tradeoff.opt import find_min_nc
 from mpl_toolkits.mplot3d import Axes3D
@@ -62,7 +63,7 @@ legendsize = 25
 #     elif ax_none:
 #         plt.show()
 
-def plot_pca2d(pX, meta, color=None, title='', fname=None, ax=None,
+def plot_pca2d(pX, meta=None, color='', title='', fname=None, ax=None,
                xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, **kwargs):
     """
     Plot expression in reduced space
@@ -80,15 +81,30 @@ def plot_pca2d(pX, meta, color=None, title='', fname=None, ax=None,
     ax_none = ax is None
     if ax_none:
         fig, ax = plt.subplots(figsize=(6,6))
+    
+    pX = pX.values if isinstance(pX, pd.DataFrame) else pX
+    
+    df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1]})
 
     colorlabel = color.title() if colorlabel is None else colorlabel
-    df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1], colorlabel: meta[color]})
+    
 
-    sns.scatterplot(data=df, x=xlabel, y=ylabel, hue=colorlabel, ax=ax, **kwargs)
+    if (meta is not None) and (color in meta.columns):
+        df[colorlabel] = meta[color].values
+        kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
+
+    sns.scatterplot(data=df, x=xlabel, y=ylabel, ax=ax, **kwargs)
     ax.set_title(title, fontsize=titlesize)
     ax.axis('off')
     if legend:
         ax.legend(fontsize=legendsize)
+        # Add a legend
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
+        ax.legend(handletextpad=0.01,
+                  loc='lower center', 
+                  bbox_to_anchor=(0.5, -0.5),
+                  ncol=2, fontsize=20, frameon=False)
     else:
         ax.get_legend().remove()
 
@@ -123,7 +139,7 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
     :param kwargs: additional arguments to pass to plt.plot"""
 
 
-    ax = plt.subplots(figsize=(14, 10))[1] if ax is None else ax
+    ax = plt.subplots(figsize=(6, 6))[1] if ax is None else ax
 
     groupby = xcol if groupby is None else groupby
     L_grp = L.groupby(groupby)
@@ -272,3 +288,74 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
     
     # footnote = f'B:{Bs}\\npc{pcs}'
     # plt.figtext(0.01, -0.3, footnote, fontsize=20)
+
+
+def smooth_tradeoff(L, rollby='pc', roll=4):
+    """
+    Smooth out curve by averaging across consequent values
+    :param L:
+    :param rollby: roll by column
+    :param roll: number of
+    """
+    # if there are multiple B
+    Bs = L['B'].unique()
+    L_per_B = []
+    for B in Bs:
+        sL = L[L['B'] == B]
+        msL = sL.groupby([rollby]).mean()
+        # msL['pc'] = msL.index
+        L_per_B.append(msL.rolling(roll).mean().iloc[roll-1:].reset_index())
+    rL = pd.concat(L_per_B)
+    return rL
+
+
+def check_increase_decrease(x, y, min_seq_locations=3):
+    """
+    Returns a vector specifying where function is decreasing or increasing (non-decreasing)
+    """
+    df = pd.DataFrame({'y':y, 'x': x})
+    df = df.groupby('x').mean().reset_index()
+    df.index = df['x']
+    df.sort_index(inplace=True)
+    
+    df['dy'] = np.nan
+    df['dy'].iloc[1:] = df.y.iloc[1:].values - df.y.iloc[:-1].values
+    df = df.iloc[1:]
+    # column for negative and positive
+    df['sign'] = np.where(df['dy'] < 0, 'decreasing', 'increasing')
+    # df.loc[np.abs(df['dy']) < min_diff, 'sign'] = 'no_change'
+    #consecutive groups
+    df['g'] = df['sign'].ne(df['sign'].shift()).cumsum()
+
+    vals = df['g'].value_counts()
+    vals = vals.index[vals.values >= min_seq_locations]
+    vals = list(vals)
+    return list(df[df['g'].isin(vals)]['sign'].unique())
+
+
+def write_roman(num):
+    """Convert number to roman index"""
+    roman = OrderedDict()
+    roman[1000] = "M"
+    roman[900] = "CM"
+    roman[500] = "D"
+    roman[400] = "CD"
+    roman[100] = "C"
+    roman[90] = "XC"
+    roman[50] = "L"
+    roman[40] = "XL"
+    roman[10] = "X"
+    roman[9] = "IX"
+    roman[5] = "V"
+    roman[4] = "IV"
+    roman[1] = "I"
+
+    def roman_num(num):
+        for r in roman.keys():
+            x, y = divmod(num, r)
+            yield roman[r] * x
+            num -= (r * x)
+            if num <= 0:
+                break
+
+    return "".join([a for a in roman_num(num)])

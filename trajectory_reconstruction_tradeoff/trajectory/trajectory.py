@@ -13,12 +13,19 @@ class Trajectory():
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, n_comp=10, name=''):
+    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
         meta   -- other available information per cell
-        outdir  -- folder path to save the plots and data"""
+        outdir  -- folder path to save the plots and data
+        do_preprocess -- if False skips complete preprocessing step
+        do_log1p -- if to perform log1p transformation transformation
+        do_sqrt -- if to perform sqrt transformation transformation
+        do_original_locs -- if to use original("true") cell locations
+        n_comp -- number of components for PCA
+        name -- optional saving of dataset name
+        """
 
         self.ncells, self.ngenes = X.shape
         if isinstance(X, pd.DataFrame) and meta is not None:
@@ -31,23 +38,27 @@ class Trajectory():
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
         self.X = X
         self.do_preprocess = do_preprocess
+        self.do_original_locs = do_original_locs
         if do_log1p and do_sqrt:
             ValueError('Should do either log1p or sqrt for preprocess')
         self.do_log1p = do_log1p
         self.do_sqrt = do_sqrt
         self.n_comp = n_comp
+
+        self.pX = None
         self.pX = self.preprocess(self.X)
 
         if D is None:
-            D,P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
+            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True)
         else: # is this fair?
             print('here')
-            _,P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
-        D = D / np.max(D)
+            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True)
+        # D = D / np.max(D) # TODO: removed this late! 
 
         self.P = P # predecessors
         self.V = None # heavy to compute so only if necessary
         self.D = D
+        self.C = T.ds.compute_covariance(X)
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
         self.outdir = outdir
@@ -72,11 +83,16 @@ class Trajectory():
     def preprocess(self, X, verbose=False):
         """
         Standard preprocess
+        X - 
         """
         if not self.do_preprocess:
             if verbose:
                 print('no preprocess')
             return X.copy()
+
+        if (self.do_original_locs) and (self.pX is not None):
+            return self.pX.loc[X.index]
+
         pca = PCA(n_components=self.n_comp, svd_solver='full')
         lX = X.copy()
         if self.do_log1p:
@@ -88,7 +104,8 @@ class Trajectory():
                 print('do_sqrt')
             lX = np.sqrt(X)
         pX = pca.fit_transform(lX)
-        return pX
+        pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
+        return pd.DataFrame(pX, index=X.index, columns=pcnames)
 
     def get_hvgs(self, n_hvgs=1000, **kwargs):
         """
@@ -144,16 +161,16 @@ class Trajectory():
         # sD = sD / sD_max
 
         psX = self.preprocess(sX)
-        psD, psP = T.ds.get_pairwise_distances(psX, return_predecessors=True) #TODO: BIG CHANGE , psD_max
+        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True) #TODO: BIG CHANGE , psD_max
         
         return sX, psX, psD, sD, psP, ix
 
     def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
         """
         Filtering downsampling params
-        :param B:
-        :param Pc:
-        :param Pt:
+        :param B: sequencing budget
+        :param Pc: cell downsample probabilities
+        :param Pt: read downsample probabilities
         :return:
         """
         if (Pc is None) and (Pt is None):
@@ -195,9 +212,21 @@ class Trajectory():
 
 
     def evaluate(self, sX, psX, psD, sD, psP, ix, comp_deltas=True, comp_nn_dist=True, 
-                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False):
+                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=True):
         """
-        
+        Computes statistics of downsampled data
+        :param sX: sampled expression
+        :param psX: latent representation of sampled expression
+        :param psD: distances of latent representation of sampled expression
+        :param sD: original distances of sampled data
+        :param psP: 
+        :param ix: index of sampled cells
+        :param comp_deltas: whether to compute side of each PC (Delta)
+        :param comp_nn_dist: whether to compute nearest neighbor distances
+        :param comp_pseudo_corr: whether to compute pseudotime correlation
+        :param comp_exp_corr: 
+        :param comp_vertex_length:
+        :param comp_covariance 
         """
         nc = sX.shape[0]
         nr = sX.sum(1).mean()
@@ -208,11 +237,11 @@ class Trajectory():
         dmax_sD = np.max(sD); nsD = sD / dmax_sD
 
         # compute error
-        l1, l2, l3, lsp = T.ds.compare_distances(npsD, nsD)
+        l1, l2, ldist, lsp = T.ds.compare_distances(nsD, npsD)
 
         
-        report = {'nc': nc, 'nr': nr, 
-                  'l1': l1, 'l2': l2, 'l3': l3, 'lsp': lsp, 
+        report = {'nc': nc, 'nr': nr, 'Br': sX.sum().sum(),
+                  'l1': l1, 'l2': l2, 'ldist': ldist, 'lsp': lsp, 
                   'dmax_psD': dmax_psD, 'dmax_sD': dmax_sD}
 
         if comp_deltas:
@@ -222,7 +251,7 @@ class Trajectory():
             report['Delta'] = pdist(psX).max()
 
         if comp_nn_dist:
-            idxmin = (sD + sD.max() * np.eye(nc)).argmin(0)
+            idxmin = (sD + sD.max() * np.eye(nc)).argmin(0) # get index of nearest neighbors
             report['nn_dist_sD'] = sD[np.arange(nc), idxmin].mean()
             report['nn_dist_nsD'] = nsD[np.arange(nc), idxmin].mean()
 
@@ -252,6 +281,9 @@ class Trajectory():
             
             report['avg_ratio_n_vertices'] = avg_ratio_n_vertices
         
+        if comp_covariance:
+            sC = T.ds.compute_covariance(sX)
+            report['cov_err'] = np.linalg.norm(self.C - sC)
         # if comp_exp_corr:
         #     or_s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], smeta['dpt'], n_buckets=n_buckets)
         #     s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], pseudo, n_buckets=n_buckets)
@@ -285,7 +317,7 @@ class Trajectory():
             self.V = T.ds.compute_path_vertex_length(self.P)
 
         if comp_pseudo_corr or comp_exp_corr:
-            self.meta['dpt'] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX)
+            self.meta['dpt'] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values)
 
         if comp_exp_corr:
             # select genes for reconstruction evaluation
@@ -323,7 +355,10 @@ class Trajectory():
                          comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
                          **kwargs)
                          
-                report = {'pc': pc, 'pt': pt, 'B': B, 'log pc': np.log(pc), 'log pt': np.log(pt), **report}
+                report = {'pc': pc, 'pt': pt, 'B': B, 
+                          'log pc': np.log(pc), 'log pt': np.log(pt), 
+                          'sqrt inv pc': np.sqrt(1/pc), 'sqrt inv pt': np.sqrt(1/pt), 
+                          **report}
                 L.append(report)
 
                 # if plot and (k == 0):

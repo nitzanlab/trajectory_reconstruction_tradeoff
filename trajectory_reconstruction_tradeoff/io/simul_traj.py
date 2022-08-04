@@ -61,32 +61,92 @@ def prosstt_trajectory(newick_string, alpha=0.3, beta=2, n_resample=1, modules=3
     meta = pd.DataFrame({'pseudotime': pseudotime, 'branch': branch, 'scalings': scalings})
 
     X = pd.DataFrame(X)
-    return X, D0, meta
+    return X, D0, meta # TODO: make D0 optional?
 
 simulate = prosstt_trajectory # Defaults simulation to PROSSTT
 
+# TODO: add to linear and curve metadata
 
-def curve_trajectory(nc, R=100):
+def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2):
     """
     Generate latent representation of a curve
     :param nc:
     :param R:
     :return:
     """
-    nc = int(nc/2)
-    theta = np.linspace(0, np.pi, nc)
-    dtheta = theta[1] - theta[0]
-    d0 = R * dtheta
+    nc_circ = int(nc * frac_curve)
+    x_circ = None
+    y_circ = None
+    d0 = 1
+    if nc_circ > 0:
+        theta = np.linspace(0, np.pi, nc_circ)
+        dtheta = theta[1] - theta[0]
+        d0 = R * dtheta
 
-    x = R * np.sin(theta)
-    y = R * np.cos(theta)
+        x = x_circ = R * np.sin(theta)
+        y = y_circ = R * np.cos(theta)
 
     # x = np.hstack((np.linspace(-314, 0, nc), x))
     # y = np.hstack((np.linspace(100, 100, nc), y))
-    x = np.hstack((np.linspace(-nc, 0, nc), x))  # setting constant dist 1 for linear part
-    y = np.hstack((np.linspace(R, R, nc), y))
+    nc_line = nc - nc_circ
+    x_line = None
+    y_line = None
+    
+    if nc_line > 0:
+        x = x_line = np.linspace(-d0 * nc_line, 0, nc_line)
+        y = y_line = np.linspace(R, R, nc_line)     
+        
+    if (x_line is not None) and (x_circ is not None):
+        x = np.hstack((x_line, x_circ))
+        y = np.hstack((y_line, y_circ))
+
+    x = x + np.random.normal(0, scale=scale_noise, size=nc)
+    y = y + np.random.normal(0, scale=scale_noise, size=nc)
     pX = np.vstack((x, y)).T
+    if dims > 2:
+        pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
+        pX = np.hstack((pX, pX_noise))
+    
     return pX
+
+def curve_clusters_trajectory(nc, k=5, p_in_k=0.7, R=100, scale_noise=5, scale_cluster=10, dims=2):
+    """
+    Generate latent representation of a curve
+    :param nc:
+    :param k: number of clusters
+    :param p_in_k: fraction of cells in clusters
+    :param R:
+    :return:
+    """
+    nc_in_k = int(nc/k * p_in_k)
+    nc_out_k = nc - nc_in_k*k
+    nc_circ = nc_out_k + k
+    theta = np.linspace(0, np.pi, nc_circ)
+    dtheta = theta[1] - theta[0]
+    d0 = R * dtheta
+    x_circ = R * np.sin(theta)
+    y_circ = R * np.cos(theta)
+    
+    x = x_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
+    y = y_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
+    
+    x_cents = x_circ[::int(nc_circ / (k-1))]
+    y_cents = y_circ[::int(nc_circ / (k-1))]
+
+    for i in np.arange(k):
+        x_cluster = np.random.normal(x_cents[i], scale=scale_cluster, size=nc_in_k-1)
+        y_cluster = np.random.normal(y_cents[i], scale=scale_cluster, size=nc_in_k-1)
+        
+        x = np.hstack((x, x_cluster))
+        y = np.hstack((y, y_cluster))
+
+    pX = np.vstack((x, y)).T
+    if dims > 2:
+        pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
+        pX = np.hstack((pX, pX_noise))
+    
+    return pX
+
 
 def line_trajectory(nc, endpoint1=(10,0), endpoint2=(0,10), std=1, nonneg=True):
     """

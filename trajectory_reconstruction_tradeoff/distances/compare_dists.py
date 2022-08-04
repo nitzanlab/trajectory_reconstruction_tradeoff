@@ -1,6 +1,8 @@
+from decimal import DivisionByZero
 import numpy as np
 import netrd
 import ot
+import warnings
 import pandas as pd
 from .compute_dists import graph_to_dists
 
@@ -19,18 +21,38 @@ def compare_distances(D0, D):
         mean squared error of log(1+x)
         mean correlation of distances
     """
-    l1 = round(sum(sum(np.abs(np.array(D) - np.array(D0)))) / len(D) ** 2, 3)
+    eps = 10e-5
+    l1 = round(sum(sum(np.abs(np.array(D) - np.array(D0)))) / len(D) ** 2, 3) #TODO: super big change!
+    # l1 = np.mean(np.abs(D0-D)[np.triu_indices_from(D0, k=1)])
     l2 = round(sum(sum(((np.array(D) - np.array(D0)) ** 2))) / len(D) ** 2, 3)
-    l3 = round(sum(sum(((np.log(1 + np.array(D)) - np.log(1 + np.array(D0))) ** 2))) / len(D) ** 2, 3)  # rmlse
 
-    lsp = []
-    for r0, r in zip(D0, D):
-        lsp.append(spearmanr(r0, r))
-    lsp = np.mean(lsp)
+    # l3 = round(sum(sum(((np.log(1 + np.array(D)) - np.log(1 + np.array(D0))) ** 2))) / len(D) ** 2, 3)  # rmlse
+    ind = np.triu_indices_from(D0, 1)
+    lcontrac = D0[ind] / (D[ind] + eps)
+    lexpand = D[ind] / (D0[ind] + eps)
+    ldist = np.mean(np.maximum(lcontrac,lexpand))
+    lsp = 0
+    # lsp = []
+    # for r0, r in zip(D0, D):
+    #     lsp.append(spearmanr(r0, r))
+    # lsp = np.mean(lsp)
 
-    return l1, l2, l3, lsp
+    return l1, l2, ldist, lsp
 
 
+def compute_covariance(X): 
+        """
+        X - in Heimberg's this is G (cells x genes)
+        according to heimberg
+        """
+        # according to heimberg
+        G = X.values.T if isinstance(X, pd.DataFrame) else X.T # gene x cells
+        n = G.shape[1]
+        N = np.max(G)
+        P = G / N 
+        P = P - 1/n * (P @ np.ones((n,1)))
+        C = (P @ P.T) / (n-1)
+        return C
 
 
 def ot_dist(G1, G2, p_labels, q_labels, plot=False):

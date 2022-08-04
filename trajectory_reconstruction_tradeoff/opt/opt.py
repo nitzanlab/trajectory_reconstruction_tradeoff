@@ -3,6 +3,19 @@ import pandas as pd
 from scipy.special import lambertw
 epsilon = 10e-10
 
+def softmax_max(xs, a=10):
+    xs = np.array(xs)
+    e_ax = np.exp(a * xs)
+    return xs @ e_ax.T / np.sum(e_ax)
+
+
+
+
+
+
+
+
+
 def find_min(x, y):
     """
     Find pc that minimizes the error
@@ -25,7 +38,6 @@ def find_min_nc(L, xcol='pc', ycol='l1'):
     pc_opt = find_min(x, y)
 
     return pc_opt
-
 
 
 def infer_complex_nr(nc1, nc2, B1, B2):

@@ -22,16 +22,16 @@ def read_dataset(dataset, dirname):
     D = None
 
     if os.path.isfile(fname_counts):
-        X, D, meta = read_data(fname_counts, fname_dists, fname_meta, fname_milestone)
+        X, D, meta = read_data_from_csv(fname_counts, fname_dists, fname_meta, fname_milestone)
     elif os.path.join(fname_anndata):
-
+        # read from Anndata
         adata = sc.read_h5ad(os.path.join(dirname, f'{dataset}.h5ad'))
         X = adata.X
         meta = adata.obs
     return X, D, meta
 
 
-def read_data(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
+def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
     """
     Read and prepare counts and distance matrices from csv files
     :param fname_counts:
@@ -63,4 +63,4 @@ if __name__ == '__main__':
     fname = 'hepatoblast'
     fname_counts = os.path.join(dirname, 'counts_' + fname + '.csv')
     fname_dists = os.path.join(dirname, 'geodesic_' + fname + '.csv')
-    X, D = read_data(fname_counts=fname_counts, fname_dists=fname_dists)
+    X, D = read_data_from_csv(fname_counts=fname_counts, fname_dists=fname_dists)
