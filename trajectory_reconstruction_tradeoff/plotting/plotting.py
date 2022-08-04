@@ -309,7 +309,7 @@ def smooth_tradeoff(L, rollby='pc', roll=4):
     return rL
 
 
-def check_increase_decrease(x, y, min_seq_locations=3):
+def check_increase_decrease(x, y, min_seq_locations=3, min_diff=1e-4):
     """
     Returns a vector specifying where function is decreasing or increasing (non-decreasing)
     """
@@ -323,8 +323,8 @@ def check_increase_decrease(x, y, min_seq_locations=3):
     df = df.iloc[1:]
     # column for negative and positive
     df['sign'] = np.where(df['dy'] < 0, 'decreasing', 'increasing')
-    # df.loc[np.abs(df['dy']) < min_diff, 'sign'] = 'no_change'
-    #consecutive groups
+    df.loc[np.abs(df['dy']) < min_diff, 'sign'] = 'neither'
+    # consecutive groups
     df['g'] = df['sign'].ne(df['sign'].shift()).cumsum()
 
     vals = df['g'].value_counts()
