@@ -3,67 +3,26 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import matplotlib
+import gif
+import ipywidgets as widgets
+from ipywidgets import interact
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trajectory_reconstruction_tradeoff.opt import find_min_nc
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn import linear_model
 from matplotlib.collections import EllipseCollection
 import seaborn as sns
+from .plotting_configs import get_color_col
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
 labelsize = 30
 ticksize = 25
-legendsize = 25
-
-# color_map = {'A': '#e6194b', 'B': '#3cb44b', 'C': '#ffe119', 'D': '#4363d8', 'E': '#f58231', 'F': '#911eb4',
-#              'G': '#46f0f0', 'H': '#f032e6', 'I': '#bcf60c', 'J': '#fabebe', 'K': '#008080', 'L': '#e6beff',
-#              'M': '#9a6324', 'N': '#fffac8', 'O': '#800000', 'P': '#aaffc3', 'Q': '#808000', 'R': '#ffd8b1',
-#              'S': '#000075', 'T': '#808080'}
+legendsize = 28
 
 
-# def plot_pca2d(expr_red, meta=None, color=None, sigma_expr=None, color_sigma='b', title='', fname=None, ax=None,
-#                color_type='N', pt_size=60, cmap='cold', shade=None, shade_shift=0.001):
-#     """
-#     Plot expression in reduced space
-#     :param expr_red: expression reduced representation
-#     :param sigma_expr: noise around reduced representation
-#     """
-#     ax_none = ax is None
-#     if ax_none:
-#         fig, ax = plt.subplots(figsize=(10, 7))
-
-#     color_cell = 'k'
-#     # if meta is not None and color is not None:
-#     #     color_cell = meta[color]
-#     #     color_cell = list(map(color_map.get, color_cell)) if color == 'branch' else color_cell
-#     if meta is not None and color is not None:
-#         color_cell = meta[color]
-#         color_cell_un = color_cell.unique()
-#         if not isinstance(color_cell.dtype, float) and (color_type == 'N'):
-#             cmap = plt.cm.get_cmap('tab20')
-#             cmap_hex = {ce: matplotlib.colors.rgb2hex(cmap.colors[np.mod(i, 20)]) for i, ce in enumerate(color_cell_un)}
-#             color_cell = list(map(cmap_hex.get, color_cell))
-
-#     if shade is not None:
-#         shade_shift = shade_shift * expr_red[:, [0,1]].max()
-#         ax.scatter(expr_red[:, 0] - shade_shift, expr_red[:, 1] - shade_shift, c=shade, marker='.', s=pt_size)
-#     ax.scatter(expr_red[:, 0], expr_red[:, 1], c=color_cell, marker='.', s=pt_size)
-#     # color_sigma = color_sigma if branch is None else list(map(color_map.get, branch))
-#     if sigma_expr is not None:
-#         ax.add_collection(EllipseCollection(widths=sigma_expr, heights=sigma_expr, angles=0, units='xy',
-#                                             offsets=list(zip(expr_red[:, 0], expr_red[:, 1])), transOffset=ax.transData,
-#                                             alpha=0.4, color=color_sigma))
-#     ax.set_title(title)
-#     ax.set_xlabel('PC0')
-#     ax.set_ylabel('PC1')
-#     # plt.colorbar()
-#     if fname is not None:
-#         plt.savefig(fname)
-#     elif ax_none:
-#         plt.show()
-
-def plot_pca2d(pX, meta=None, color='', title='', fname=None, ax=None,
+def plot_pca2d(pX, meta=None, color=None, title='', fname=None, ax=None,
                xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, **kwargs):
     """
     Plot expression in reduced space
@@ -86,26 +45,28 @@ def plot_pca2d(pX, meta=None, color='', title='', fname=None, ax=None,
     
     df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1]})
 
-    colorlabel = color.title() if colorlabel is None else colorlabel
+    color = get_color_col(meta, color_col=color)
+    colorlabel = color.title() if (colorlabel is None) and color else colorlabel
     
 
-    if (meta is not None) and (color in meta.columns):
+    if (meta is not None) and (color):# in meta.columns):
         df[colorlabel] = meta[color].values
         kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
 
     sns.scatterplot(data=df, x=xlabel, y=ylabel, ax=ax, **kwargs)
     ax.set_title(title, fontsize=titlesize)
     ax.axis('off')
-    if legend:
+
+    # Add a legend
+    if color and legend:
         ax.legend(fontsize=legendsize)
-        # Add a legend
         pos = ax.get_position()
         ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
         ax.legend(handletextpad=0.01,
                   loc='lower center', 
                   bbox_to_anchor=(0.5, -0.5),
                   ncol=2, fontsize=20, frameon=False)
-    else:
+    elif color and not legend:
         ax.get_legend().remove()
 
     
@@ -119,7 +80,8 @@ def plot_pca2d(pX, meta=None, color='', title='', fname=None, ax=None,
 def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
                   color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, 
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
-                  labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, **kwargs):
+                  labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
+                  add_fit=False, **kwargs):
     """
     Plot reconstruction error as a function of sampling probability (alternatively, plot results of any two parameters)
     :param L: dataframe with sampling parameters and errors
@@ -158,8 +120,9 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    if title is not None:
-        ax.set_title(title, fontsize=titlesize)
+
+    title = title if title is not None else f'{ylabel} vs {xlabel}'
+    ax.set_title(title, fontsize=titlesize)
 
     if pc_opt is not None:
         color_min = color_mean if color_min is None else color_min
@@ -172,61 +135,27 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
     ax.xaxis.set_major_locator(plt.MaxNLocator(3))
     ax.yaxis.set_major_locator(plt.MaxNLocator(3))
 
-# def to_paper(pl):
-#     labelFontSize=15
-#     titleFontSize=20
-#     fontSize=20
+    # add linear fit
+    if add_fit:
+        model_ = linear_model.LinearRegression()
+        model_.fit(L[[xcol]], L[ycol])
+        if verbose:
+            print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
+        ax.plot(L[xcol], model_.predict(L[[xcol]]), color='black', linewidth=4, linestyle='--')
 
-#     pl = pl.configure_view(strokeOpacity=1, strokeWidth=3, stroke='black')
-#     pl = pl.configure_axis(labelFontSize=labelFontSize, titleFontWeight='normal', titleFontSize=titleFontSize)
-#     pl = pl.configure_title(fontSize=fontSize)
-#     pl = pl.configure_legend(titleFontSize=labelFontSize, labelFontSize=labelFontSize)
+        # add score
+        r = 2 # R^2 round factor
+        R = np.round(model_.score(x.reshape((-1,1)),y), r)
+        kwargs_text = {'x': 0.3, 'y': 0.9, 'ha':'center', 'va':'center', 'fontsize':30}
+        ax.text(s=fr'$R^2$={R}', transform=ax.transAxes, **kwargs_text)
 
-#     return pl
-
-# def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
-#     axis_nada = alt.Axis(grid=False, labels=False, ticks=False)
-#     scale_nz = alt.Scale(zero=False)
-
-#     color_var = '#b1b1b1'
-#     color_few_cells = '#df755b'
-#     color_med_cells = '#5bb844'
-#     color_lots_cells = '#7997dc'
-
-#     back_color_truth = '#d8d8d8'
-#     back_color_few_cells = '#fde7e2'
-#     back_color_med_cells = '#e2f7df'
-#     back_color_lots_cells = '#eaf0fc'
-
-#     colors = [color_few_cells, color_med_cells, color_lots_cells, ]
-#     back_colors = [back_color_few_cells, back_color_med_cells, back_color_lots_cells, back_color_truth]
-
-#     xlabel = 'Cell sampling probability (pc)'
-#     x = alt.X('pc:O', #scale=alt.Scale(type='log', base=1.000001),
-#               title=xlabel,)# axis=alt.Axis(grid=False, values=np.linspace(0,1, 6)))
-# #     yticks = np.linspace(res[ycol].min(), res[ycol].max(), 6)
-#     y = alt.Y(ycol + ':Q', axis=alt.Axis(grid=False, tickCount=6), scale=scale_nz, title=ylabel)
-#     pl_all = alt.Chart(res, width=300, height=300).mark_boxplot().encode(x=x,
-#                                                                          y=y,
-#                                                                          color=alt.value(color_var))
-
-#     pls = [pl_all]
-
-#     for i, nc in enumerate(Pcs):
-
-#     #     print(df[sel2]['pc'].unique())
-#         pls.append(alt.Chart(res[res['pc'] == nc]).mark_boxplot().encode(x=x,
-#                                                                  y=y,
-#                                                                  color=alt.value(colors[i])))
-
-#     return to_paper(alt.layer(*pls))
-
-
+        return model_
 
 
 def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
-                            structures=[], colors={}, color='black', axs=None, **kwargs):
-
+                            structures=[], colors={}, color='black', axs=None, title=None, **kwargs):
+    """
+    """
     # L_tradeoff['log pc'] = np.log(L_tradeoff['pc'])
     Bs = L_tradeoff['B'].unique()
     L_tradeoff_grp = L_tradeoff.groupby(['trajectory type'])
@@ -249,6 +178,7 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
     
     istructure = 0
     for _,structure in enumerate(structures): # iterate over structures
+        title = title if title is None else structure
     # for istructure,(structure,L) in enumerate(L_tradeoff_grp): # iterate over structures
         if structure in L_tradeoff_grp.groups.keys():
             L = L_tradeoff_grp.get_group(structure)
@@ -274,7 +204,7 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
             for _,(B,ssL) in enumerate(sL.groupby('B')): # iterate over budgets
                 pc_opt = find_min_nc(ssL, xcol=xcol, ycol=ycol) if plot_pc_opt else None
                 plot_tradeoff(ssL, xcol=xcol, ycol=ycol, color_mean=color, color_std=color, 
-                label=repeat, ax=ax, plot_std=plot_std, pc_opt=pc_opt, title=structure, **kwargs)
+                label=repeat, ax=ax, plot_std=plot_std, pc_opt=pc_opt, title=title, **kwargs)
         istructure += 1
 
     pcs = L_tradeoff['pc'].unique()
@@ -359,3 +289,41 @@ def write_roman(num):
                 break
 
     return "".join([a for a in roman_num(num)])
+
+def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname=''):
+    """
+    Generates gif of cell positions. 
+    :param df: dataframe including frame id, and x and y position for each cell
+    :param frameby: presents in a frame all cells (rows) with this id
+    :param xcol: x position of each cell
+    :param ycol: y position of each cell
+    :param fname: name of gif file
+    """
+
+    xlim = (df[xcol].min(), df[xcol].max())
+    ylim = (df[ycol].min(), df[ycol].max())
+
+    if not frameby.isin(df.columns):
+        print(f'{frameby} not in columns. Exiting')
+        return
+
+    frameby_ids = df[frameby].unique().sort_values()
+    nframes = len(frameby_ids)
+    @gif.frame
+    def plot(j):
+        i = nframes - 1 - j
+        frameby_val = frameby_ids[i]
+        sdf = df[df[frameby] == frameby_val]
+        plt.scatter(sdf[xcol], sdf[ycol], c= sdf['idx_c'], cmap='rainbow')
+        
+        plt.title(fr'{frameby}={np.round(frameby_val, 4)}')
+        plt.axis('off')
+        plt.xlim(xlim)
+        plt.ylim(ylim)
+        
+    frames = []
+    for j in range(nframes):
+        frame = plot(j)
+        frames.append(frame)
+
+    gif.save(frames, fname, duration=10, unit="s", between="startend")

@@ -12,3 +12,4 @@ geckodriver.log
 *.txt
 *.txt.gz
 *.pyc
+*.gif

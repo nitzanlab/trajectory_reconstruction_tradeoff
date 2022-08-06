@@ -46,7 +46,7 @@ class Trajectory():
         self.n_comp = n_comp
 
         self.pX = None
-        self.pX = self.preprocess(self.X)
+        self.pX, self.pca = self.preprocess(self.X, return_pca=True)
 
         if D is None:
             D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True)
@@ -80,7 +80,7 @@ class Trajectory():
         self.do_log1p = do_log1p
 
 
-    def preprocess(self, X, verbose=False):
+    def preprocess(self, X, verbose=False, return_pca=False):
         """
         Standard preprocess
         X - 
@@ -105,7 +105,12 @@ class Trajectory():
             lX = np.sqrt(X)
         pX = pca.fit_transform(lX)
         pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
-        return pd.DataFrame(pX, index=X.index, columns=pcnames)
+        pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
+        
+        if return_pca:
+            return pX, pca
+
+        return pX
 
     def get_hvgs(self, n_hvgs=1000, **kwargs):
         """
@@ -160,10 +165,10 @@ class Trajectory():
         # sD_max = np.max(sD) #TODO: BIG CHANGE
         # sD = sD / sD_max
 
-        psX = self.preprocess(sX)
+        psX, pca = self.preprocess(sX, return_pca=True)
         psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True) #TODO: BIG CHANGE , psD_max
         
-        return sX, psX, psD, sD, psP, ix
+        return sX, psX, psD, sD, psP, ix, pca
 
     def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
         """
@@ -211,8 +216,8 @@ class Trajectory():
         return dws_params
 
 
-    def evaluate(self, sX, psX, psD, sD, psP, ix, comp_deltas=True, comp_nn_dist=True, 
-                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=True):
+    def evaluate(self, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
+                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=True, comp_pc_err=True):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -291,6 +296,13 @@ class Trajectory():
         #     exp_corr = T.dw.expression_correlation(bucket_mean, s_bucket_mean)
         #     report['exp_corr'] = exp_corr
         #     report['or_exp_corr'] = or_exp_corr
+
+        # compute change of pc direction
+        if comp_pc_err:
+            # max_err = np.sqrt(2) # heimberg says they normalize by sqrt(2) but I don't think that's correct
+            pc_err = np.linalg.norm(pca.components_ - self.pca.components_, axis=1) #/ max_err
+            for pc_dim in np.arange(self.n_comp):
+                report[f'PC{pc_dim+1}_err'] = pc_err[pc_dim]
 
         return report
 

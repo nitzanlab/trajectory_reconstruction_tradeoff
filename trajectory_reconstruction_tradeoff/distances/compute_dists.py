@@ -61,27 +61,45 @@ def get_pairwise_distances(pX, return_predecessors=False, plot=False, verbose=Fa
         
     return DP #, TODO: temp neighbors dmax
 
+
+def get_path(src, des, P): # TODO: is this a subfunction of below?
+    """
+    Given (dijkstra's) predecessors matrix, finds the path between src and des.
+    """
+    path = []
+    while (des != src) & (des>=0):
+        path.append(des)
+        des = P[src][des]
+
+    path.append(src)
+    return path
+
+
+
 def compute_path_vertex_length(P):
     """
-    Given dijkstra's predecessors matrix, computes the number of vertices along each path.
-    :return:
+    Given (dijkstra's) predecessors matrix, computes the number of vertices along each path.
+    :return: number of vertices along the path
     """
     n = len(P)
     # V = np.full_like(P, np.inf, dtype=np.double)
     V = np.zeros_like(P)
     # right now n^3 so pretty bad...
-    for i1 in range(n):
-        for i2 in np.arange(i1, n): # assuming symmetry
-            i = i1
+    for src in range(n):
+        for des in np.arange(src, n): # assuming symmetry
+            i = src
+            
             n_vertices = 0
         
-            while (i != i2) and (n_vertices < n):
-                i = P[i2, i]
+            while (i != des) and (n_vertices < n):
+                i = P[des, i]
                 n_vertices += 1
-            # print(i1, i2, n_vertices)
-            V[i1, i2] = n_vertices
+            # print(src, des, n_vertices)
+
+            V[src, des] = n_vertices
     V = V + V.T
     return V
+
 
 def dist_by_graph(G, cluster_labels):
     """

@@ -1,17 +1,125 @@
 import numpy as np
 import pandas as pd
 from scipy.special import lambertw
+from scipy.optimize import curve_fit
 epsilon = 10e-10
 
 def softmax_max(xs, a=10):
+    """
+    Computes softmax of an array
+    """
     xs = np.array(xs)
     e_ax = np.exp(a * xs)
     return xs @ e_ax.T / np.sum(e_ax)
 
+def get_quadratic_sol(a,b,c):
+    """
+    Given quadratic formula of the form: ax^2 + bx + c = 0
+    solves for its roots.
+    """
+    sol1 = (-b + np.sqrt(b**2 - 4*a*c)) / (2 * a)
+    sol2 = (-b - np.sqrt(b**2 - 4*a*c)) / (2 * a)
+    return sol1,sol2
 
 
+def get_pc_min_pred(model_read, model_cell, B):
+    """
+    Given the linear fits of:
+    :param model_read: read downsample error as a function of 1/sqrt(pt)
+    :param model_cell: cell downsample error as a function of 1/sqrt(pc)
+    :param B: subsampling budget
+    computes the optimal number of cells to assay
+    """
+    a = model_read.intercept_.take(0)
+    b = model_read.coef_.take(0)
+    alpha = model_cell.intercept_.take(0)
+    beta = model_cell.coef_.take(0)
+
+    # TODO: check both errors are increasing/decreasing as should
+    if (a < 0) or (alpha < 0):
+        print(f'Intercepts should be non-negative. Got, for read model: {a}, for cell model: {alpha}')
+        return
+
+    if (b < 0) or (beta < 0):
+        print(f'Slopes should be non-negative. Got, for read model: {b}, for cell model: {beta}')
+        return
+
+    w = (alpha-a)
+    v = -b / np.sqrt(B)
+    t = beta
+
+    sol1,sol2 = get_quadratic_sol(v,w,t)
+
+    pc_min_pred = sol2**2
+    return pc_min_pred
 
 
+# def fit_reconstruction_err(L):
+#     """
+#     Fit each reconstruction error curve by:
+#     \varepsilon = b * (sqrt(B)/x) + beta * x +c
+#     where x corresponds to 1/sqrt(pc)
+#     """
+#     # TODO: check for single experiment (budget and dataset)
+#     nBs = L['B'].value_counts().shape[0]
+#     ntrajs = L['trajectory type'].value_counts().shape[0] if 'trajectory type' in L.columns else 0
+#     if (nBs > 1) or (ntrajs > 1):
+#         print(f'Computes fit of a single experiment (budget and data). Data seems to include: {ntrajs} data types, and {nBs} budgets')
+    
+#     gL = L.groupby('pc').mean()
+#     sqB = np.sqrt(L['B'].values[0])
+
+#     def cov_err(x, b, beta, c):
+#         y = b*(sqB/x) + beta*x + c
+#         return y
+
+#     xdata = gL['sqrt inv pc'].values
+#     ydata = gL['l1'].values
+#     parameters, _ = curve_fit(cov_err, xdata, ydata)
+
+#     ydata_hat = cov_err(xdata, *parameters)
+    
+#     # plt.plot(xdata, ydata, 'o', label='data')
+#     # plt.plot(xdata, ydata_hat, '-', label='fit')
+    
+#     return ydata_hat
+    
+
+def fit_reconstruction_err(L):
+    """
+    Fit each reconstruction error curve by:
+    \varepsilon = b * (x2/x1) + beta * x1 +c
+    where x1 corresponds to 1/sqrt(pc) and x2 corresponds to sqrt(B)
+    """
+    ntrajs = L['trajectory type'].value_counts().shape[0] if 'trajectory type' in L.columns else 0
+    if (ntrajs > 1):
+        print(f'Computes fit of a single trajectory. Data seems to include: {ntrajs} trajectories.')
+    
+    gL = L.groupby(['B','pc']).mean().reset_index()
+    
+    # def cov_err(X, b, beta, c):
+    #     x1,x2 = X
+    #     y = b*(x2/x1) + beta*x1 + c
+    #     return y
+
+    def cov_err(X, b, beta, a, alpha):
+        x1,x2 = X
+        y = np.max(b*(x2/x1) + a, beta*x1 + alpha)
+        return y
+
+    xdata1 = gL['sqrt inv pc'].values
+    xdata2 = np.sqrt(gL['B'].values)
+    xdata = (xdata1, xdata2)
+    ydata = gL['l1'].values
+    parameters, _ = curve_fit(cov_err, xdata, ydata)
+
+    ydata_hat = cov_err(xdata, *parameters)
+    
+    # plt.plot(xdata, ydata, 'o', label='data')
+    # plt.plot(xdata, ydata_hat, '-', label='fit')
+    
+    gL['pred l1 fit'] = ydata_hat
+    return gL
 
 
 
