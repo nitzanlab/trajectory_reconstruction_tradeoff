@@ -46,3 +46,9 @@ python run.py hayashi --sample cells  --desc covariance
 python run.py hepatoblast --sample cells  --desc covariance 
 python run.py fibroblasts --sample cells   --desc covariance 
 python run.py hematopoiesis --sample cells  --desc covariance 
+
+
+python run.py hayashi --sample reads  --desc pc_err 
+python run.py curve --sample reads  --desc pc_err 
+python run.py hayashi --sample cells  --desc pc_err 
+python run.py curve --sample cells  --desc pc_err 

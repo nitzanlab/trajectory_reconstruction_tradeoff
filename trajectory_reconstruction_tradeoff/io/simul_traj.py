@@ -67,7 +67,7 @@ simulate = prosstt_trajectory # Defaults simulation to PROSSTT
 
 # TODO: add to linear and curve metadata
 
-def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2):
+def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2,reverse_log1p=True):
     """
     Generate latent representation of a curve
     :param nc:
@@ -84,7 +84,8 @@ def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2):
         d0 = R * dtheta
 
         x = x_circ = R * np.sin(theta)
-        y = y_circ = R * np.cos(theta)
+        y_circ = R * np.cos(theta)
+        y = y_circ = y_circ + np.abs(y_circ.min())
 
     # x = np.hstack((np.linspace(-314, 0, nc), x))
     # y = np.hstack((np.linspace(100, 100, nc), y))
@@ -100,52 +101,64 @@ def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2):
         x = np.hstack((x_line, x_circ))
         y = np.hstack((y_line, y_circ))
 
-    x = x + np.random.normal(0, scale=scale_noise, size=nc)
-    y = y + np.random.normal(0, scale=scale_noise, size=nc)
+    x = x + np.random.poisson(scale_noise, size=nc)
+    y = y + np.random.poisson(scale_noise, size=nc)
     pX = np.vstack((x, y)).T
     if dims > 2:
-        pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
-        pX = np.hstack((pX, pX_noise))
+        pX_mapping = np.random.poisson(scale_noise, size=(dims, 2))
+        pX_mapping = pX_mapping / np.linalg.norm(pX_mapping)
+        # pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
+        # pX = np.hstack((pX, pX_noise))
+        pX = (pX_mapping @ pX.T).T
+        # pX_noise = np.random.poisson(scale_noise, size=(nc, dims-2))
+        # pX = np.hstack((pX, pX_noise))
+    if reverse_log1p:
+        pX = np.exp(pX) - 1
+        pX = np.maximum(pX, 0) #TODO: remove?
     
     return pX
 
-def curve_clusters_trajectory(nc, k=5, p_in_k=0.7, R=100, scale_noise=5, scale_cluster=10, dims=2):
-    """
-    Generate latent representation of a curve
-    :param nc:
-    :param k: number of clusters
-    :param p_in_k: fraction of cells in clusters
-    :param R:
-    :return:
-    """
-    nc_in_k = int(nc/k * p_in_k)
-    nc_out_k = nc - nc_in_k*k
-    nc_circ = nc_out_k + k
-    theta = np.linspace(0, np.pi, nc_circ)
-    dtheta = theta[1] - theta[0]
-    d0 = R * dtheta
-    x_circ = R * np.sin(theta)
-    y_circ = R * np.cos(theta)
+# def curve_clusters_trajectory(nc, k=5, p_in_k=0.7, R=100, scale_noise=5, scale_cluster=10, dims=2, reverse_log1p=False):
+#     """
+#     Generate latent representation of a curve
+#     :param nc:
+#     :param k: number of clusters
+#     :param p_in_k: fraction of cells in clusters
+#     :param R:
+#     :return:
+#     """
+#     nc_in_k = int(nc/k * p_in_k)
+#     nc_out_k = nc - nc_in_k*k
+#     nc_circ = nc_out_k + k
+#     theta = np.linspace(0, np.pi, nc_circ)
+#     dtheta = theta[1] - theta[0]
+#     d0 = R * dtheta
+#     x_circ = R * np.sin(theta)
+#     y_circ = R * np.cos(theta)
     
-    x = x_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
-    y = y_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
+#     x = x_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
+#     y = y_circ + np.random.normal(0, scale=scale_noise, size=nc_circ)
     
-    x_cents = x_circ[::int(nc_circ / (k-1))]
-    y_cents = y_circ[::int(nc_circ / (k-1))]
+#     x_cents = x_circ[::int(nc_circ / (k-1))]
+#     y_cents = y_circ[::int(nc_circ / (k-1))]
 
-    for i in np.arange(k):
-        x_cluster = np.random.normal(x_cents[i], scale=scale_cluster, size=nc_in_k-1)
-        y_cluster = np.random.normal(y_cents[i], scale=scale_cluster, size=nc_in_k-1)
+#     for i in np.arange(k):
+#         x_cluster = np.random.normal(x_cents[i], scale=scale_cluster, size=nc_in_k-1)
+#         y_cluster = np.random.normal(y_cents[i], scale=scale_cluster, size=nc_in_k-1)
         
-        x = np.hstack((x, x_cluster))
-        y = np.hstack((y, y_cluster))
+#         x = np.hstack((x, x_cluster))
+#         y = np.hstack((y, y_cluster))
 
-    pX = np.vstack((x, y)).T
-    if dims > 2:
-        pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
-        pX = np.hstack((pX, pX_noise))
-    
-    return pX
+#     pX = np.vstack((x, y)).T
+#     if dims > 2:
+#         pX_mapping = np.random.poisson(scale_noise, size=(2, dims))
+#         # pX_noise = np.random.normal(0, scale=scale_noise, size=(nc, dims-2))
+#         # pX = np.hstack((pX, pX_noise))
+#         pX = pX_mapping @ pX
+#     if reverse_log1p:
+#         pX = np.exp(pX) - 1
+#         pX = np.maximum(pX, 0) #TODO: remove?
+#     return pX
 
 
 def line_trajectory(nc, endpoint1=(10,0), endpoint2=(0,10), std=1, nonneg=True):

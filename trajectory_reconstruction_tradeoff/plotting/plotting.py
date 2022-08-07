@@ -290,7 +290,10 @@ def write_roman(num):
 
     return "".join([a for a in roman_num(num)])
 
-def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname=''):
+    
+
+def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname='', 
+                const_size=False, duration=20, unit="s", between="startend", **kwargs):
     """
     Generates gif of cell positions. 
     :param df: dataframe including frame id, and x and y position for each cell
@@ -298,6 +301,7 @@ def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname=''):
     :param xcol: x position of each cell
     :param ycol: y position of each cell
     :param fname: name of gif file
+    :param const_size: if True, all frames have the same limits
     """
 
     xlim = (df[xcol].min(), df[xcol].max())
@@ -318,12 +322,13 @@ def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname=''):
         
         plt.title(fr'{frameby}={np.round(frameby_val, 4)}')
         plt.axis('off')
-        plt.xlim(xlim)
-        plt.ylim(ylim)
+        if const_size:
+            plt.xlim(xlim)
+            plt.ylim(ylim)
         
     frames = []
     for j in range(nframes):
         frame = plot(j)
         frames.append(frame)
 
-    gif.save(frames, fname, duration=10, unit="s", between="startend")
+    gif.save(frames, fname, duration=duration, unit=unit, between=between, **kwargs)

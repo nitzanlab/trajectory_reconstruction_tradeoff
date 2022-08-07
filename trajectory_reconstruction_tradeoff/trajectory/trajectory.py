@@ -58,54 +58,61 @@ class Trajectory():
         self.P = P # predecessors
         self.V = None # heavy to compute so only if necessary
         self.D = D
-        self.C = T.ds.compute_covariance(X)
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
         self.outdir = outdir
         self.name = name
 
-    def set_n_comp(self, n_comp):
-        """
-        Edit number of components
-        :param n_comp:
-        """
-        self.n_comp = n_comp
+    # def set_n_comp(self, n_comp):
+    #     """
+    #     Edit number of components
+    #     :param n_comp:
+    #     """
+    #     self.n_comp = n_comp
 
 
-    def set_log1p(self, do_log1p):
-        """
-        Set whether to apply log1p
-        :param do_log1p:
-        """
-        self.do_log1p = do_log1p
+    # def set_log1p(self, do_log1p):
+    #     """
+    #     Set whether to apply log1p
+    #     :param do_log1p:
+    #     """
+    #     self.do_log1p = do_log1p
 
 
     def preprocess(self, X, verbose=False, return_pca=False):
         """
         Standard preprocess
-        X - 
+        :param X: expression counts (cells x genes)
+        :param verbose: print progress
+        :param return_pca: return PCA object
+        :return: preprocessed expression
         """
-        if not self.do_preprocess:
-            if verbose:
-                print('no preprocess')
-            return X.copy()
+        # return data as is without preprocessing
+        pX = X.copy()
+        pca = None
 
+        # use the original cell locations (similar to without pp but can be a latent representation)
         if (self.do_original_locs) and (self.pX is not None):
-            return self.pX.loc[X.index]
+            # return self.pX.loc[X.index]
+            pX = self.pX.loc[X.index]
 
-        pca = PCA(n_components=self.n_comp, svd_solver='full')
-        lX = X.copy()
-        if self.do_log1p:
-            if verbose:
-                print('do_log1p')
-            lX = np.log1p(X)
-        if self.do_sqrt:
-            if verbose:
-                print('do_sqrt')
-            lX = np.sqrt(X)
-        pX = pca.fit_transform(lX)
-        pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
-        pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
+        if self.do_preprocess:
+            # collapsing operation, log1p, sqrt
+            lX = X.copy()
+            if self.do_log1p:
+                if verbose:
+                    print('do_log1p')
+                lX = np.log1p(X)
+            if self.do_sqrt:
+                if verbose:
+                    print('do_sqrt')
+                lX = np.sqrt(X)
+
+            # pca computation
+            pca = PCA(n_components=self.n_comp, svd_solver='full')
+            pX = pca.fit_transform(lX)
+            pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
+            pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
         
         if return_pca:
             return pX, pca
@@ -217,7 +224,8 @@ class Trajectory():
 
 
     def evaluate(self, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
-                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=True, comp_pc_err=True):
+                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
+                 comp_covariance_latent=True, comp_pc_err=True):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -231,7 +239,9 @@ class Trajectory():
         :param comp_pseudo_corr: whether to compute pseudotime correlation
         :param comp_exp_corr: 
         :param comp_vertex_length:
-        :param comp_covariance 
+        :param comp_covariance: compare covariance of gene expression space
+        :param comp_covariance_latent: compare covariance of latent space
+        :param comp_pc_err: compare PC error
         """
         nc = sX.shape[0]
         nr = sX.sum(1).mean()
@@ -289,6 +299,10 @@ class Trajectory():
         if comp_covariance:
             sC = T.ds.compute_covariance(sX)
             report['cov_err'] = np.linalg.norm(self.C - sC)
+
+        if comp_covariance_latent:
+            psC = T.ds.compute_covariance(psX)
+            report['cov_latent_err'] = np.linalg.norm(self.pC - psC)
         # if comp_exp_corr:
         #     or_s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], smeta['dpt'], n_buckets=n_buckets)
         #     s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], pseudo, n_buckets=n_buckets)
@@ -309,6 +323,7 @@ class Trajectory():
 
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
                          comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, 
+                         comp_covariance=False, comp_covariance_latent=True,
                          hvgs=None, n_buckets=10, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
@@ -345,6 +360,12 @@ class Trajectory():
 
             bucket_mean = T.dw.get_mean_bucket_exp(self.X[hvgs], self.meta['dpt'], n_buckets=n_buckets)
 
+        if comp_covariance:
+            self.C = T.ds.compute_covariance(self.X)
+
+        if comp_covariance_latent:
+            self.pC = T.ds.compute_covariance(self.pX)
+
         L = []
 
         for k in range(repeats):
@@ -365,6 +386,7 @@ class Trajectory():
                 
                 report = self.evaluate(*subsample_result,
                          comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
+                         comp_covariance=comp_covariance, comp_covariance_latent=comp_covariance_latent,
                          **kwargs)
                          
                 report = {'pc': pc, 'pt': pt, 'B': B, 

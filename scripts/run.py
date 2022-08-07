@@ -1,6 +1,6 @@
 import os
 from pip import main
-import sys; sys.path.insert(0, '/cs/usr/nomoriel/PycharmProjects/trajectory_reconstruction_tradeoff')
+import sys; sys.path.insert(0, '../')
 import glob
 import argparse
 import pandas as pd
@@ -16,9 +16,9 @@ from altair_saver import save
 random.seed(20)
 
 # trajectory params
-dirname = '/cs/labs/mornitzan/nomoriel/trajectory_reconstruction_tradeoff/'
+dirname = '../'
 datadir = os.path.join(dirname, 'datasets')
-outdir = os.path.join(dirname, 'output_new2' )
+outdir = os.path.join(dirname, 'output' )
 
 
 def parse():
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     L_per_traj = []
     for B in Bs:
         print(B)
-        L_per_traj.append(traj.compute_tradeoff(B=B, Pc=Pc, Pt=Pt, repeats=repeats, comp_deltas=True))
+        L_per_traj.append(traj.compute_tradeoff(B=B, Pc=Pc, Pt=Pt, repeats=repeats))
     L = pd.concat(L_per_traj)
 
     L['trajectory type'] = dataset
