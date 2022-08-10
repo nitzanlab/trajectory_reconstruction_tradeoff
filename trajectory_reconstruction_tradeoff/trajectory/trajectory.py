@@ -13,7 +13,9 @@ class Trajectory():
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, outdir=None, do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, name=''):
+    def __init__(self, X, D=None, meta=None, outdir=None, 
+    do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, by_hvgs=False, n_hvgs=100,
+    radius=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
@@ -23,6 +25,9 @@ class Trajectory():
         do_log1p -- if to perform log1p transformation transformation
         do_sqrt -- if to perform sqrt transformation transformation
         do_original_locs -- if to use original("true") cell locations
+        radius -- if provided, use only cells within this radius ball
+        by_hvgs -- if True, use highly variable genes to reduce the dimensionality of the expression matrix
+        n_hvgs -- number of highly variable genes to use
         n_comp -- number of components for PCA
         name -- optional saving of dataset name
         """
@@ -46,13 +51,18 @@ class Trajectory():
         self.n_comp = n_comp
 
         self.pX = None
+        self.by_hvgs = by_hvgs
+        self.n_hvgs = n_hvgs
+        self.hvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
         self.pX, self.pca = self.preprocess(self.X, return_pca=True)
 
+        self.radius = radius
+
         if D is None:
-            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True)
+            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, radius=self.radius)
         else: # is this fair?
             print('here')
-            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True)
+            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, radius=self.radius)
         # D = D / np.max(D) # TODO: removed this late! 
 
         self.P = P # predecessors
@@ -82,6 +92,8 @@ class Trajectory():
     def preprocess(self, X, verbose=False, return_pca=False):
         """
         Standard preprocess
+        Optional log1p or sqrt,
+        followed by (optional) highly variable genes or PCA reduction
         :param X: expression counts (cells x genes)
         :param verbose: print progress
         :param return_pca: return PCA object
@@ -103,16 +115,20 @@ class Trajectory():
                 if verbose:
                     print('do_log1p')
                 lX = np.log1p(X)
-            if self.do_sqrt:
+            elif self.do_sqrt:
                 if verbose:
                     print('do_sqrt')
                 lX = np.sqrt(X)
-
-            # pca computation
-            pca = PCA(n_components=self.n_comp, svd_solver='full')
-            pX = pca.fit_transform(lX)
-            pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
-            pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
+            if self.by_hvgs:
+                if verbose:
+                    print('hvgs representation')
+                pX = lX.loc[:, self.hvgs]
+            else:
+                # pca computation
+                pca = PCA(n_components=self.n_comp, svd_solver='full')
+                pX = pca.fit_transform(lX)
+                pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
+                pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
         
         if return_pca:
             return pX, pca
@@ -173,7 +189,7 @@ class Trajectory():
         # sD = sD / sD_max
 
         psX, pca = self.preprocess(sX, return_pca=True)
-        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True) #TODO: BIG CHANGE , psD_max
+        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
         return sX, psX, psD, sD, psP, ix, pca
 
@@ -225,7 +241,7 @@ class Trajectory():
 
     def evaluate(self, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
                  comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
-                 comp_covariance_latent=True, comp_pc_err=True):
+                 comp_covariance_latent=True, comp_pc_err=False):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
