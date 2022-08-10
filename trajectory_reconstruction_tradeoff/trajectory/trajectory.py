@@ -14,7 +14,7 @@ class Trajectory():
     """
 
     def __init__(self, X, D=None, meta=None, outdir=None, 
-    do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, by_hvgs=False, n_hvgs=100,
+    do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100,
     radius=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
@@ -26,7 +26,7 @@ class Trajectory():
         do_sqrt -- if to perform sqrt transformation transformation
         do_original_locs -- if to use original("true") cell locations
         radius -- if provided, use only cells within this radius ball
-        by_hvgs -- if True, use highly variable genes to reduce the dimensionality of the expression matrix
+        do_hvgs -- if True, use highly variable genes to reduce the dimensionality of the expression matrix
         n_hvgs -- number of highly variable genes to use
         n_comp -- number of components for PCA
         name -- optional saving of dataset name
@@ -51,7 +51,7 @@ class Trajectory():
         self.n_comp = n_comp
 
         self.pX = None
-        self.by_hvgs = by_hvgs
+        self.do_hvgs = do_hvgs
         self.n_hvgs = n_hvgs
         self.hvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
         self.pX, self.pca = self.preprocess(self.X, return_pca=True)
@@ -119,7 +119,7 @@ class Trajectory():
                 if verbose:
                     print('do_sqrt')
                 lX = np.sqrt(X)
-            if self.by_hvgs:
+            if self.do_hvgs:
                 if verbose:
                     print('hvgs representation')
                 pX = lX.loc[:, self.hvgs]

@@ -25,6 +25,7 @@ python run.py hayashi --sample cells  --desc original_locs
 python run.py hepatoblast --sample cells  --desc original_locs
 python run.py fibroblasts --sample cells   --desc original_locs
 python run.py hematopoiesis --sample cells  --desc original_locs
+python run.py bending_map --sample cells  --desc original_locs
 
 python run.py linear_rep0 --sample reads  --desc distortion
 python run.py dendritic --sample reads  --desc distortion
