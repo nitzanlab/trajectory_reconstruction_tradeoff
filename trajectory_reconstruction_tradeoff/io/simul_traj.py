@@ -161,6 +161,26 @@ def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2,reverse_lo
 #     return pX
 
 
+def bending_map(nc, d, R=0.2):
+    """
+    Generate bending map
+    :param d:
+    :param R:
+    :return:
+    """
+    if d < 2:
+        print("d must be >= 2")
+        return
+
+    t = np.random.uniform(-0.5, 0.5, (nc,d-1))
+    B1 = R * np.sin(t[:,0]/R) # first dimension of B
+    Bd = R * (1 - np.cos(t[:,0]/R)) # last dimension of B
+    B = np.vstack((B1, Bd)).T
+    if d > 2:
+        B = np.concatenate((B1.reshape((-1,1)), t[:,1:], Bd.reshape((-1,1))), axis=1)
+        
+    return B
+
 def line_trajectory(nc, endpoint1=(10,0), endpoint2=(0,10), std=1, nonneg=True):
     """
     """
