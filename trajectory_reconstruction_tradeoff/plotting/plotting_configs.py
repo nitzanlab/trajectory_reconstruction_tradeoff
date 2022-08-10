@@ -98,6 +98,15 @@ def get_traj_fignames(datasets):
     traj_fignames['linear_rep0'] = 'simulated'
     return traj_fignames
 
+def get_traj_colors(datasets, default_color='black'):
+    """
+    Colors for datasets
+    """
+    colors = {}
+    for dataset in datasets:
+        colors[dataset] = colors_datasets[dataset] if dataset in colors_datasets.keys() else default_color
+    return colors
+
 # color_map = {'A': '#e6194b', 'B': '#3cb44b', 'C': '#ffe119', 'D': '#4363d8', 'E': '#f58231', 'F': '#911eb4',
 #              'G': '#46f0f0', 'H': '#f032e6', 'I': '#bcf60c', 'J': '#fabebe', 'K': '#008080', 'L': '#e6beff',
 #              'M': '#9a6324', 'N': '#fffac8', 'O': '#800000', 'P': '#aaffc3', 'Q': '#808000', 'R': '#ffd8b1',

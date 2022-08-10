@@ -14,6 +14,8 @@ from sklearn import linear_model
 from matplotlib.collections import EllipseCollection
 import seaborn as sns
 from .plotting_configs import get_color_col
+import networkx as nx
+from sklearn.neighbors import kneighbors_graph
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -75,7 +77,17 @@ def plot_pca2d(pX, meta=None, color=None, title='', fname=None, ax=None,
     elif ax_none:
         plt.show()
 
-
+def plot_spring_layout(pX, neighbors=2, meta=None, verbose=False):
+    """
+    Plots spring layout of the minimal-fully-connected kNN graph
+    :param pX: cells reduced representation
+    :param neighbors: number of neighbors
+    """
+    A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=False)
+    G = nx.from_numpy_matrix(A)
+    pos = nx.spring_layout(G)
+    nx.draw(G, pos,node_size=3) #width=edge_weight, 
+    plt.show()
 
 def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
                   color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, 
