@@ -403,8 +403,10 @@ class Trajectory():
         if comp_density:
             # density_0 = T.ds.compute_density(sD)
             density = T.ds.compute_density(sD)
+            pdensity = T.ds.compute_density(psD)
             # report['density_0'] = density_0
             report['density'] = density
+            report['pdensity'] = pdensity
 
         if comp_proj_err:
             if verbose:

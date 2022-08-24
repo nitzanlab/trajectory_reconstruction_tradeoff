@@ -59,12 +59,12 @@ if __name__ == '__main__':
     # kwargs_traj['do_preprocess'] = False # only for bending map
 
     # TEMP
-    # desc = f'{desc}_nolog1p'
-    # kwargs_traj['do_log1p'] = False
+    desc = f'{desc}_nolog1p'
+    kwargs_traj['do_log1p'] = False
 
     # TEMP
-    desc = f'{desc}_hvgs'
-    kwargs_traj['do_hvgs'] = True
+    # desc = f'{desc}_hvgs'
+    # kwargs_traj['do_hvgs'] = True
 
     # load trajectory
     X, D, meta = T.io.read_dataset(dataset, args.datadir)
