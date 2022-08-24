@@ -31,13 +31,15 @@ def compare_distances(D0, D):
     lcontrac = D0[ind] / (D[ind] + eps)
     lexpand = D[ind] / (D0[ind] + eps)
     ldist = np.mean(np.maximum(lcontrac,lexpand))
+    fcontrac = np.sum(lcontrac > 1) / len(lcontrac)
+    fexpand = np.sum(lexpand > 1) / len(lexpand)
     lsp = 0
     # lsp = []
     # for r0, r in zip(D0, D):
     #     lsp.append(spearmanr(r0, r))
     # lsp = np.mean(lsp)
 
-    return l1, l2, ldist, lsp
+    return l1, l2, ldist, fcontrac, fexpand, lsp
 
 
 def compute_covariance(X): 

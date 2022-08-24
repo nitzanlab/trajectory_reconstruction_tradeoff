@@ -16,6 +16,7 @@ import seaborn as sns
 from .plotting_configs import get_color_col
 import networkx as nx
 from sklearn.neighbors import kneighbors_graph
+from sklearn.decomposition import PCA
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -77,17 +78,50 @@ def plot_pca2d(pX, meta=None, color=None, title='', fname=None, ax=None,
     elif ax_none:
         plt.show()
 
-def plot_spring_layout(pX, neighbors=2, meta=None, verbose=False):
+def project(pX, n_comp=2):
+    """
+    Project onto PCA space
+    """
+    pca = PCA(n_components=n_comp, svd_solver='full')
+    ppX = pca.fit_transform(pX)
+    pcnames = ['PC%d' % (i+1) for i in np.arange(ppX.shape[1])]
+    ppX = pd.DataFrame(ppX, index=pX.index, columns=pcnames)
+    return ppX
+
+def plot_project_pca2d(pX, n_comp=2, **kwargs):
+    """
+    Projects and plots pca 2d
+    """
+    ppX = project(pX, n_comp=n_comp)
+    plot_pca2d(ppX, **kwargs)
+
+
+def plot_spring_layout(pX=None, A=None, neighbors=2, meta=None, verbose=False, node_size=3, **kwargs):
     """
     Plots spring layout of the minimal-fully-connected kNN graph
     :param pX: cells reduced representation
     :param neighbors: number of neighbors
     """
-    A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=False)
+    # distances are not given and have to be recomputed
+    if A is None and pX is not None:
+        A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=False)
+    
     G = nx.from_numpy_matrix(A)
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos,node_size=3) #width=edge_weight, 
+
+    # set position by pX
+    if pX is not None:
+        pos = {}
+        for inode,node in enumerate(G.nodes()):
+            pos[node] = pX.iloc[inode].values[:2]
+    else:
+        pos = nx.spring_layout(G)
+    nx.draw(G, pos, node_size=3, **kwargs) #width=edge_weight, 
     plt.show()
+
+def plot_project_spring_layout(pX, n_comp=2, **kwargs):
+    ppX = project(pX, n_comp=n_comp)
+    plot_spring_layout(pX=ppX, **kwargs)
+
 
 def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
                   color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, 

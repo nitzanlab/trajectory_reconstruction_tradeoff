@@ -27,7 +27,7 @@ def get_pairwise_distances_branch(pseudotime, branch, branch_time_dict):
     # D = D / dmax
     return D
 
-def get_pairwise_distances(pX, return_predecessors=False, verbose=False, radius=None):
+def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False, verbose=False, by_radius=False, radius=None, dim=None):
     """
     Computes cells geodesic distances as shortest path in the minimal-fully-connected kNN graph
     :param pX: cells reduced representation 
@@ -35,8 +35,22 @@ def get_pairwise_distances(pX, return_predecessors=False, verbose=False, radius=
         distances( normalized)
         max dist
     """
-    D = np.inf
+    n = pX.shape[0]
+    D = np.inf #np.full((n,n), np.inf)
     pX = pX.values if isinstance(pX, pd.DataFrame) else pX
+    
+    if by_radius:
+        if radius is None:
+            radius = 2 * (np.log(n)/n)**(1/(2*dim))
+        W = squareform(pdist(pX))
+        A = np.zeros((n,n))
+        A[W < radius] = W[W < radius]
+        DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
+        D = DP[0] if return_predecessors else DP
+        if verbose:
+            print(f'Running with radius {radius}')
+            if np.sum(D) == np.inf:
+                print('Graph is disconnected')
     
     if radius is None:   
         neighbors = 2
@@ -48,18 +62,10 @@ def get_pairwise_distances(pX, return_predecessors=False, verbose=False, radius=
         if verbose:
             print(f'Running with {neighbors} neighbors')
 
-    if radius is not None:
-        A_full = squareform(pdist(pX))
-        D[A_full < radius] = A_full[A_full < radius]
-        DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
-        D = DP[0] if return_predecessors else DP
-        if verbose:
-            print(f'Running with radius {radius}')
-            if np.sum(D) == np.inf:
-                print('Graph is disconnected')
     # dmax = np.max(D) # dmax = np.max(D) # TODO: BIG CHANGE
     # D = D / dmax
-        
+    if return_adjacency:
+        return DP, A        
     return DP #, TODO: temp neighbors dmax
 
 
@@ -146,3 +152,94 @@ def graph_to_dists(G):
     return G_dists
 
 
+import numpy as np
+from scipy.linalg import svd
+from sklearn.neighbors import NearestNeighbors
+
+def tangent_subspace(
+    X,
+    *,
+    n_neighbors,
+    n_jobs=None,
+):
+    """Editted from sklearn.manifold Locally Linear Embedding analysis on the data.
+    Read more in the :ref:`User Guide <locally_linear_embedding>`.
+    Parameters
+    ----------
+    X : {array-like, NearestNeighbors}
+        Sample data, shape = (n_samples, n_features), in the form of a
+        numpy array or a NearestNeighbors object.
+    n_neighbors : int
+        number of neighbors to consider for each point.
+    n_jobs : int or None, default=None
+        The number of parallel jobs to run for neighbors search.
+        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+        for more details.
+    Returns
+    -------
+    V : left eigenvectors per point N x N x d_in
+    eval : eigenvalues per point
+        
+    """
+    
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors + 1, n_jobs=n_jobs)
+    nbrs.fit(X)
+    X = nbrs._fit_X
+
+    N, d_in = X.shape
+
+    neighbors = nbrs.kneighbors( X, n_neighbors=n_neighbors + 1, return_distance=False)
+    neighbors = neighbors[:, 1:]
+
+    V = np.zeros((N, d_in, d_in))
+    # V = np.zeros((N, n_neighbors, n_neighbors))
+    nev = min(d_in, n_neighbors)
+    evals = np.zeros([N, nev])
+
+    # choose the most efficient way to find the eigenvectors
+    use_svd = n_neighbors > d_in
+
+    if use_svd:
+        for i in range(N):
+            X_nbrs = X[neighbors[i]] - X[i] # Changed: want this to be features x neighbors instead of neighbors x features
+            V[i], evals[i], _ = svd(X_nbrs.T, full_matrices=True)
+    return V, evals
+
+
+
+
+def compute_reach(pX, n_components=6, n_neighbors=10, verbose=False):
+    """
+    Computes the reach of each cell in the graph.  
+    :param pX: cells reduced representation
+    :param d: degree of tangent subspace
+    :return: \hat{\tau} = \inf_{x,y} \frac{\|x - y\|^2}{2 d(x-y, T_xM)}
+    """
+    pX = pX.values if isinstance(pX, pd.DataFrame) else pX
+    nc,n_dim = pX.shape
+    U, _ = tangent_subspace(pX, n_neighbors=n_neighbors) # V holds the U matrix for each point based 
+    U = U[:,:,:n_components] # truncate to intrinsic dimension, each U is of shape (n_neighbors, n_dim)
+    x_min_y = np.repeat(pX, nc, axis=0).reshape(nc, nc, n_dim) - np.tile(pX, (nc,1)).reshape(nc, nc, n_dim) # nc x nc x n_dim
+    norm_x_min_y = np.linalg.norm(x_min_y, axis=2) # nc x nc
+    d_x_min_y_TxM = np.zeros((nc, nc)) # nc x nc
+    for i in range(nc):
+        P = U[i,:,:] @ U[i,:,:].T
+        proj_x_min_y = (P @ x_min_y[i].reshape(nc, n_dim).T).T # nc x n_dim
+        norm_proj_x_min_y = np.linalg.norm(proj_x_min_y, axis=1) # nc
+        d_x_min_y_TxM[i,:] = norm_x_min_y[i,:] - norm_proj_x_min_y # nc - for each point, the distance to the tangent space at point i
+
+    return np.nanmin(norm_x_min_y**2 / (2*d_x_min_y_TxM))
+
+
+def compute_density(D):
+    """
+    Computes the density of each cell in the graph.
+
+    :return: min_j d^M_{ij} \leq a, \forall i\in[n_c]
+    """
+    # should we compute this on the normalized distances
+    n = D.shape[0]
+    D_max = D.max()
+    a = np.max((D + D_max * np.eye(n)).min(axis=1))
+    return a

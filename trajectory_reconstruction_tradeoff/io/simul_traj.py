@@ -164,19 +164,19 @@ def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2,reverse_lo
 def bending_map(nc, d, R=0.2):
     """
     Generate bending map
-    :param d:
+    :param d: the latent dimension of 
     :param R:
     :return:
     """
-    if d < 2:
-        print("d must be >= 2")
+    if d < 1:
+        print("d must be >= 1 as it is the latent dimension of the manifold")
         return
 
-    t = np.random.uniform(-0.5, 0.5, (nc,d-1))
+    t = np.random.uniform(-0.5, 0.5, (nc,d))
     B1 = R * np.sin(t[:,0]/R) # first dimension of B
     Bd = R * (1 - np.cos(t[:,0]/R)) # last dimension of B
     B = np.vstack((B1, Bd)).T
-    if d > 2:
+    if d > 1:
         B = np.concatenate((B1.reshape((-1,1)), t[:,1:], Bd.reshape((-1,1))), axis=1)
         
     return B

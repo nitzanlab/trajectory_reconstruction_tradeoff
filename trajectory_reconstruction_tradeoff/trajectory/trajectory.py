@@ -1,4 +1,6 @@
 import os
+from tabnanny import verbose
+import skdim
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -15,7 +17,7 @@ class Trajectory():
 
     def __init__(self, X, D=None, meta=None, outdir=None, 
     do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100,
-    radius=None, name=''):
+    by_radius=False, radius=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
@@ -31,7 +33,7 @@ class Trajectory():
         n_comp -- number of components for PCA
         name -- optional saving of dataset name
         """
-
+        # standardize input
         self.ncells, self.ngenes = X.shape
         if isinstance(X, pd.DataFrame) and meta is not None:
             if (X.index != meta.index).any():
@@ -41,6 +43,8 @@ class Trajectory():
             genenames = ['g%d' % i for i in range(self.ngenes)]
             cellnames = ['c%d' % i for i in range(self.ncells)] if meta is None else meta.index
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
+
+        # save configs
         self.X = X
         self.do_preprocess = do_preprocess
         self.do_original_locs = do_original_locs
@@ -49,20 +53,35 @@ class Trajectory():
         self.do_log1p = do_log1p
         self.do_sqrt = do_sqrt
         self.n_comp = n_comp
-
         self.pX = None
         self.do_hvgs = do_hvgs
         self.n_hvgs = n_hvgs
-        self.hvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
-        self.pX, self.pca = self.preprocess(self.X, return_pca=True)
-
         self.radius = radius
+        self.by_radius = by_radius
+        self.name = name
+        self.outdir = outdir
+        
+        if self.outdir is not None:
+            if not os.path.exists(self.outdir):
+                os.makedirs(self.outdir)
+
+        # preprocess
+        self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
+        self.pX, self.pca = self.preprocess(self.X, return_pca=True)
+        
+        self.dim =  self.get_dimension() 
+        self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input
+        if self.pca:
+            self.projection = self.compute_projection(self.pca)
+        
 
         if D is None:
-            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, radius=self.radius)
+            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
+            by_radius=self.by_radius, radius=self.radius, dim=self.dim)
         else: # is this fair?
             print('here')
-            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, radius=self.radius)
+            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
+            by_radius=self.by_radius, radius=self.radius, dim=self.dim)
         # D = D / np.max(D) # TODO: removed this late! 
 
         self.P = P # predecessors
@@ -70,8 +89,7 @@ class Trajectory():
         self.D = D
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
-        self.outdir = outdir
-        self.name = name
+        self.density_0 = T.ds.compute_density(self.D)
 
     # def set_n_comp(self, n_comp):
     #     """
@@ -88,7 +106,7 @@ class Trajectory():
     #     """
     #     self.do_log1p = do_log1p
 
-
+    # @staticmethod #TODO: make static?
     def preprocess(self, X, verbose=False, return_pca=False):
         """
         Standard preprocess
@@ -135,6 +153,35 @@ class Trajectory():
 
         return pX
 
+    def compute_projection(self, pca, by_hvgs=True):
+        """
+        Computing projection matrix (over hvgs)
+        """
+        U = pca.components_.T # I think should compute over the transpose but I think this is alright (and much cheaper in memory)
+        if by_hvgs:
+            U = U[self.ihvgs]
+        projection = U @ U.T
+        return projection
+
+    # @staticmethod # TODO: make static?
+    def get_dimension(self, verbose=False):
+        """
+        Get dimension of latent representation
+        """
+        #estimate global intrinsic dimension
+        # danco = skdim.id.DANCo().fit(self.pX)
+        #estimate local intrinsic dimension (dimension in k-nearest-neighborhoods around each point):
+        lpca = skdim.id.lPCA().fit_pw(self.pX,
+                                    n_neighbors = 100,
+                                    n_jobs = 1)
+
+        #get estimated intrinsic dimension
+        if verbose:
+            # print(f'DANCo dimension estimate: {danco.dimension_}')
+            print(f'Mean lpca dimension estimates are: {np.mean(lpca.dimension_pw_)}')
+        return np.mean(lpca.dimension_pw_)
+
+    # @staticmethod # TODO: make static?
     def get_hvgs(self, n_hvgs=1000, **kwargs):
         """
         Uses Scanpy highly_variable_genes computation
@@ -144,8 +191,10 @@ class Trajectory():
         sc.pp.log1p(adata)
         sc.pp.highly_variable_genes(adata, n_top_genes=n_hvgs, **kwargs)
         adata.var['genename'] = self.X.columns
-        hvgs = list(adata.var[adata.var['highly_variable']]['genename'])
-        return hvgs
+        ihvgs = np.where(adata.var['highly_variable'])[0]
+        hvgs = list(adata.var.iloc[ihvgs]['genename'])
+        
+        return hvgs, ihvgs
 
     def subsample_counts(self, pc, pt):
         """
@@ -189,7 +238,8 @@ class Trajectory():
         # sD = sD / sD_max
 
         psX, pca = self.preprocess(sX, return_pca=True)
-        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
+        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True,
+        by_radius=self.by_radius, radius=self.radius, dim=self.dim) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
         return sX, psX, psD, sD, psP, ix, pca
 
@@ -201,8 +251,18 @@ class Trajectory():
         :param Pt: read downsample probabilities
         :return:
         """
+        subsample = 'both'
         if (Pc is None) and (Pt is None):
             ValueError('Need to set Pc or Pt')
+        if B is None or B <= 0:
+            if Pt is None:
+                Pt = 1
+                subsample = 'cells'
+            if Pc is None:
+                Pc = 1
+                subsample = 'reads'
+            if verbose:
+                print('Subsampling only {}'.format(subsample))
         if Pt is None:
             Pt = [B / pc for pc in Pc]
         if Pc is None:
@@ -241,7 +301,7 @@ class Trajectory():
 
     def evaluate(self, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
                  comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
-                 comp_covariance_latent=True, comp_pc_err=False):
+                 comp_covariance_latent=False, comp_pc_err=False, comp_reach=True, comp_density=True, comp_proj_err=True):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -268,11 +328,11 @@ class Trajectory():
         dmax_sD = np.max(sD); nsD = sD / dmax_sD
 
         # compute error
-        l1, l2, ldist, lsp = T.ds.compare_distances(nsD, npsD)
+        l1, l2, ldist, fcontrac, fexpand, lsp = T.ds.compare_distances(nsD, npsD)
 
         
         report = {'nc': nc, 'nr': nr, 'Br': sX.sum().sum(),
-                  'l1': l1, 'l2': l2, 'ldist': ldist, 'lsp': lsp, 
+                  'l1': l1, 'l2': l2, 'ldist': ldist, 'fcontrac': fcontrac, 'fexpand': fexpand, 'lsp': lsp, 
                   'dmax_psD': dmax_psD, 'dmax_sD': dmax_sD}
 
         if comp_deltas:
@@ -334,12 +394,30 @@ class Trajectory():
             for pc_dim in np.arange(self.n_comp):
                 report[f'PC{pc_dim+1}_err'] = pc_err[pc_dim]
 
+        if comp_reach:
+            if verbose:
+                print('Computing reachability is appropriate only with all/most cells included')
+            reach = T.ds.compute_reach(psX)
+            report['reach'] = reach
+
+        if comp_density:
+            # density_0 = T.ds.compute_density(sD)
+            density = T.ds.compute_density(sD)
+            # report['density_0'] = density_0
+            report['density'] = density
+
+        if comp_proj_err:
+            if verbose:
+                print('Assuming no log1p transform')
+            projection = self.compute_projection(pca) # need left eigenvectors
+            report['proj_err'] = np.linalg.norm(self.projection - projection, ord=2)
+
         return report
 
 
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
                          comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, 
-                         comp_covariance=False, comp_covariance_latent=True,
+                         comp_covariance=False, comp_covariance_latent=False, 
                          hvgs=None, n_buckets=10, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
@@ -367,7 +445,7 @@ class Trajectory():
             if hvgs is None:
                 perc_top_hvgs = 0.10
                 n_hvgs = int(self.ngenes * perc_top_hvgs)  # 10 top hvgs
-                hvgs = self.get_hvgs(n_hvgs=n_hvgs)
+                hvgs = self.get_hvgs(n_hvgs=n_hvgs)[0]
                 hvgs_mean = self.X[hvgs].mean()
                 n_hhvgs = min(20, len(hvgs))
                 hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
@@ -381,6 +459,10 @@ class Trajectory():
 
         if comp_covariance_latent:
             self.pC = T.ds.compute_covariance(self.pX)
+
+        # if comp_proj_err:
+        
+            
 
         L = []
 
@@ -430,31 +512,32 @@ if __name__ == '__main__':
     # newick = '((((A:%d)B:%d)C:%d)D:%d)E:%d;' % ((nper_seg,) * nsegs)
 
     X, D_true, meta = T.io.simulate(newick)
-    X = pd.DataFrame(X)
+    traj = Trajectory(X, meta=meta)
+#     X = pd.DataFrame(X)
 
-    adata = sc.AnnData(X)
-    adata.obs = meta.loc[X.index]
-    sc.pp.log1p(adata)
-    sc.tl.pca(adata)  # recomputing since 10 pcs give disconnected pseudotime
-    sc.pl.pca(adata)
-#     sc.pp.neighbors(adata, method='gauss', use_rep='X_pca')
-#     sc.tl.diffmap(adata)
-#     adata.uns['iroot'] = 0  # np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0]
-#     sc.tl.dpt(adata)
-#     sc.pl.pca(adata, color=['pseudotime', 'dpt_pseudotime'])
-#     print(np.corrcoef(adata.obs['pseudotime'], adata.obs['dpt_pseudotime'])[0][1])
-#
-    # dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'
-    # dataset = 'prosstt_sf%d' % size_factor
-    # X.to_csv(os.path.join(dirname, 'counts_%s.csv' % dataset))
-#
-    # meta.to_csv(os.path.join(dirname, '%s_cell_info.csv' % dataset))
-#
-    # D_true = pd.DataFrame(D_true, columns=X.index, index=X.index)
-    # D_true.to_csv(os.path.join(dirname, 'geodesic_%s.csv' % dataset))
+#     adata = sc.AnnData(X)
+#     adata.obs = meta.loc[X.index]
+#     sc.pp.log1p(adata)
+#     sc.tl.pca(adata)  # recomputing since 10 pcs give disconnected pseudotime
+#     sc.pl.pca(adata)
+# #     sc.pp.neighbors(adata, method='gauss', use_rep='X_pca')
+# #     sc.tl.diffmap(adata)
+# #     adata.uns['iroot'] = 0  # np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0]
+# #     sc.tl.dpt(adata)
+# #     sc.pl.pca(adata, color=['pseudotime', 'dpt_pseudotime'])
+# #     print(np.corrcoef(adata.obs['pseudotime'], adata.obs['dpt_pseudotime'])[0][1])
+# #
+#     # dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'
+#     # dataset = 'prosstt_sf%d' % size_factor
+#     # X.to_csv(os.path.join(dirname, 'counts_%s.csv' % dataset))
+# #
+#     # meta.to_csv(os.path.join(dirname, '%s_cell_info.csv' % dataset))
+# #
+#     # D_true = pd.DataFrame(D_true, columns=X.index, index=X.index)
+#     # D_true.to_csv(os.path.join(dirname, 'geodesic_%s.csv' % dataset))
     
-#
-#     # traj = Trajectory(X, D_true)
-    traj = Trajectory(X, D_true, meta=meta)
-    traj.compute_tradeoff(0.002, [0.3])
-    print('done')
+# #
+# #     # traj = Trajectory(X, D_true)
+#     traj = Trajectory(X, D_true, meta=meta)
+#     traj.compute_tradeoff(0.002, [0.3])
+#     print('done')
