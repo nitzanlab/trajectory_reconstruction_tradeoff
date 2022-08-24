@@ -53,3 +53,18 @@ python run.py hayashi --sample reads  --desc pc_err
 python run.py curve --sample reads  --desc pc_err 
 python run.py hayashi --sample cells  --desc pc_err 
 python run.py curve --sample cells  --desc pc_err 
+
+
+python run.py linear_rep0 --sample cells  --desc reach 
+python run.py dendritic --sample cells  --desc reach 
+python run.py hayashi --sample cells  --desc reach 
+python run.py hepatoblast --sample cells  --desc reach 
+python run.py fibroblasts --sample cells   --desc reach 
+python run.py hematopoiesis --sample cells  --desc reach
+
+python run.py linear_rep0 --sample reads  --desc reach 
+python run.py dendritic --sample reads  --desc reach 
+python run.py hayashi --sample reads  --desc reach 
+python run.py hepatoblast --sample reads  --desc reach 
+python run.py fibroblasts --sample reads   --desc reach 
+python run.py hematopoiesis --sample reads  --desc reach

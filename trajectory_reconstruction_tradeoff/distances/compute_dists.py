@@ -182,12 +182,13 @@ def tangent_subspace(
     eval : eigenvalues per point
         
     """
-    
+    N, d_in = X.shape
+    n_neighbors = min(n_neighbors, N - 1)
     nbrs = NearestNeighbors(n_neighbors=n_neighbors + 1, n_jobs=n_jobs)
     nbrs.fit(X)
     X = nbrs._fit_X
 
-    N, d_in = X.shape
+    # N, d_in = X.shape
 
     neighbors = nbrs.kneighbors( X, n_neighbors=n_neighbors + 1, return_distance=False)
     neighbors = neighbors[:, 1:]
