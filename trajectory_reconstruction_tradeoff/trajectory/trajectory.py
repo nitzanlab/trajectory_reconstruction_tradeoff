@@ -67,7 +67,7 @@ class Trajectory():
 
         # preprocess
         self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
-        self.pX, _, self.pca = self.preprocess(self.X, return_pca=True)
+        self.pX, self.lX, self.pca = self.preprocess(self.X, return_pca=True)
         
         self.dim =  self.get_dimension() 
         self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input
@@ -120,13 +120,17 @@ class Trajectory():
         # return data as is without preprocessing
         pX = X.copy()
         pca = None
-
+        do_preprocess = self.do_preprocess
+        
         # use the original cell locations (similar to without pp but can be a latent representation)
         if (self.do_original_locs) and (self.pX is not None):
             # return self.pX.loc[X.index]
+            lX = self.lX.loc[X.index]
             pX = self.pX.loc[X.index]
+            pca = self.pca
+            do_preprocess = False
 
-        if self.do_preprocess:
+        if do_preprocess:
             # collapsing operation, log1p, sqrt
             lX = X.copy()
             if self.do_log1p:
