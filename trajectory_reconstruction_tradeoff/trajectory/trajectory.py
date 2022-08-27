@@ -121,7 +121,7 @@ class Trajectory():
         pX = X.copy()
         pca = None
         do_preprocess = self.do_preprocess
-        
+
         # use the original cell locations (similar to without pp but can be a latent representation)
         if (self.do_original_locs) and (self.pX is not None):
             # return self.pX.loc[X.index]
@@ -303,7 +303,7 @@ class Trajectory():
         return dws_params
 
 
-    def evaluate(self, pc, pt, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
+    def evaluate(self, sX, psX, psD, sD, psP, ix, pca, pc, pt, comp_deltas=False, comp_nn_dist=True, 
                  comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
                  comp_covariance_latent=False, comp_pc_err=True, comp_reach=True, comp_density=True, comp_proj_err=True):
         """
@@ -495,7 +495,7 @@ class Trajectory():
                         print(f'When downsampling with cell probability {pc} and read probability {pt}, got LinAlgError.')
                     continue
                 
-                report = self.evaluate(pc=pc, pt=pt, *subsample_result,
+                report = self.evaluate(*subsample_result, pc=pc, pt=pt, 
                          comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
                          comp_covariance=comp_covariance, comp_covariance_latent=comp_covariance_latent,
                          **kwargs)
