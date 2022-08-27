@@ -67,7 +67,7 @@ class Trajectory():
 
         # preprocess
         self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
-        self.pX, self.pca = self.preprocess(self.X, return_pca=True)
+        self.pX, _, self.pca = self.preprocess(self.X, return_pca=True)
         
         self.dim =  self.get_dimension() 
         self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input
@@ -149,9 +149,9 @@ class Trajectory():
                 pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
         
         if return_pca:
-            return pX, pca
+            return pX, lX, pca
 
-        return pX
+        return pX, lX
 
     def compute_projection(self, pca, by_hvgs=True):
         """
@@ -237,7 +237,7 @@ class Trajectory():
         # sD_max = np.max(sD) #TODO: BIG CHANGE
         # sD = sD / sD_max
 
-        psX, pca = self.preprocess(sX, return_pca=True)
+        psX, _, pca = self.preprocess(sX, return_pca=True)
         psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True,
         by_radius=self.by_radius, radius=self.radius, dim=self.dim) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
@@ -299,9 +299,9 @@ class Trajectory():
         return dws_params
 
 
-    def evaluate(self, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
+    def evaluate(self, pc, pt, sX, psX, psD, sD, psP, ix, pca, comp_deltas=False, comp_nn_dist=True, 
                  comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
-                 comp_covariance_latent=False, comp_pc_err=False, comp_reach=True, comp_density=True, comp_proj_err=True):
+                 comp_covariance_latent=False, comp_pc_err=True, comp_reach=True, comp_density=True, comp_proj_err=True):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -394,15 +394,18 @@ class Trajectory():
             for pc_dim in np.arange(self.n_comp):
                 report[f'PC{pc_dim+1}_err'] = pc_err[pc_dim]
 
-        if comp_reach:
+        if comp_reach and pca:
+            sX_all, _ = self.subsample_counts(pc=1, pt=pt) # not ideal bc subsample can change
+            _, lsX_all = self.preprocess(sX_all)
             if verbose:
                 print('Computing reachability is appropriate only with all/most cells included')
-            reach = T.ds.compute_reach(psX)
+            psX_all = pca.transform(lsX_all) # applying pca on all cells
+            reach = T.ds.compute_reach(psX_all)
             report['reach'] = reach
-            if pca:
-                pX_all = pca.transform(X) #TODO: should be lX, right now appropriate only when there is no log1p
-                reach_org_proj = T.ds.compute_reach(pX_all)
-                report['reach_org_proj'] = reach_org_proj
+            # if pca:
+            #     pX_all = pca.transform(X) #TODO: should be lX, right now appropriate only when there is no log1p
+            #     reach_org_proj = T.ds.compute_reach(pX_all)
+            #     report['reach_org_proj'] = reach_org_proj
 
         if comp_density:
             # density_0 = T.ds.compute_density(sD)
@@ -488,7 +491,7 @@ class Trajectory():
                         print(f'When downsampling with cell probability {pc} and read probability {pt}, got LinAlgError.')
                     continue
                 
-                report = self.evaluate(*subsample_result,
+                report = self.evaluate(pc=pc, pt=pt, *subsample_result,
                          comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
                          comp_covariance=comp_covariance, comp_covariance_latent=comp_covariance_latent,
                          **kwargs)
