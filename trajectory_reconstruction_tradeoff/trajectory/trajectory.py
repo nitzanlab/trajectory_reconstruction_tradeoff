@@ -399,6 +399,10 @@ class Trajectory():
                 print('Computing reachability is appropriate only with all/most cells included')
             reach = T.ds.compute_reach(psX)
             report['reach'] = reach
+            if pca:
+                pX_all = pca.transform(X) #TODO: should be lX, right now appropriate only when there is no log1p
+                reach_org_proj = T.ds.compute_reach(pX_all)
+                report['reach_org_proj'] = reach_org_proj
 
         if comp_density:
             # density_0 = T.ds.compute_density(sD)

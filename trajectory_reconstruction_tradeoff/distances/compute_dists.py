@@ -219,7 +219,11 @@ def compute_reach(pX, n_components=6, n_neighbors=10, verbose=False):
     """
     pX = pX.values if isinstance(pX, pd.DataFrame) else pX
     nc,n_dim = pX.shape
-    U, _ = tangent_subspace(pX, n_neighbors=n_neighbors) # V holds the U matrix for each point based 
+    try:
+        U, _ = tangent_subspace(pX, n_neighbors=n_neighbors) # V holds the U matrix for each point based 
+    except ValueError:
+        print('Error in computing tangent subspace')
+        return np.nan
     U = U[:,:,:n_components] # truncate to intrinsic dimension, each U is of shape (n_neighbors, n_dim)
     x_min_y = np.repeat(pX, nc, axis=0).reshape(nc, nc, n_dim) - np.tile(pX, (nc,1)).reshape(nc, nc, n_dim) # nc x nc x n_dim
     norm_x_min_y = np.linalg.norm(x_min_y, axis=2) # nc x nc
