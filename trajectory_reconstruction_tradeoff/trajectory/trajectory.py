@@ -7,6 +7,8 @@ import scanpy as sc
 import trajectory_reconstruction_tradeoff as T
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import pdist
+from scipy.linalg import svd
+
 epsilon = 10e-10
 
 
@@ -71,8 +73,9 @@ class Trajectory():
         
         self.dim =  self.get_dimension() 
         self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input
-        if self.pca:
-            self.projection = self.compute_projection(self.pca)
+        # if self.pca:
+            # self.projection = self.compute_projection(self.pca)
+        self.projection = self.compute_projection(self.lX)
         
 
         if D is None:
@@ -157,15 +160,36 @@ class Trajectory():
 
         return pX, lX
 
-    def compute_projection(self, pca, by_hvgs=True):
+    def compute_projection(self, lX, by_hvgs=True):
         """
         Computing projection matrix (over hvgs)
+        lX - (cells x genes)
         """
-        U = pca.components_.T # I think should compute over the transpose but I think this is alright (and much cheaper in memory)
+        X = lX.T
+
+        # center data
+        X_cen = X - X.mean(axis=0) # substract column means
+
+        # compute svd decomposition of X
+        U, _, _ = svd(X_cen, full_matrices=False) # U is (genes x min(genes,cells))
+
+        # compute projection matrix
         if by_hvgs:
-            U = U[self.ihvgs]
+            U = U[self.ihvgs] # only over hvgs
         projection = U @ U.T
+
         return projection
+
+
+    # def compute_projection(self, pca, by_hvgs=True):
+    #     """
+    #     Computing projection matrix (over hvgs)
+    #     """
+    #     U = pca.components_.T # I think should compute over the transpose but I think this is alright (and much cheaper in memory)
+    #     if by_hvgs:
+    #         U = U[self.ihvgs]
+    #     projection = U @ U.T
+    #     return projection
 
     # @staticmethod # TODO: make static?
     def get_dimension(self, verbose=False):
@@ -241,11 +265,11 @@ class Trajectory():
         # sD_max = np.max(sD) #TODO: BIG CHANGE
         # sD = sD / sD_max
 
-        psX, _, pca = self.preprocess(sX, return_pca=True)
+        psX, lsX, pca = self.preprocess(sX, return_pca=True)
         psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True,
         by_radius=self.by_radius, radius=self.radius, dim=self.dim) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
-        return sX, psX, psD, sD, psP, ix, pca
+        return sX, psX, lsX, psD, sD, psP, ix, pca
 
     def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
         """
@@ -303,7 +327,7 @@ class Trajectory():
         return dws_params
 
 
-    def evaluate(self, sX, psX, psD, sD, psP, ix, pca, pc, pt, comp_deltas=False, comp_nn_dist=True, 
+    def evaluate(self, sX, psX, lsX, psD, sD, psP, ix, pca, pc, pt, comp_deltas=False, comp_nn_dist=True, 
                  comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
                  comp_covariance_latent=False, comp_pc_err=True, comp_reach=True, comp_density=True, comp_proj_err=True):
         """
@@ -422,7 +446,8 @@ class Trajectory():
         if comp_proj_err:
             if verbose:
                 print('Assuming no log1p transform')
-            projection = self.compute_projection(pca) # need left eigenvectors
+            # projection = self.compute_projection(pca) # need left eigenvectors
+            projection = self.compute_projection(lsX) # need left eigenvectors
             report['proj_err'] = np.linalg.norm(self.projection - projection, ord=2)
 
         return report
