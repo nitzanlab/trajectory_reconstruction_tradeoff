@@ -59,8 +59,8 @@ if __name__ == '__main__':
     # kwargs_traj['do_preprocess'] = False # only for bending map
 
     # TEMP
-    desc = f'{desc}_nolog1p'
-    kwargs_traj['do_log1p'] = False
+    # desc = f'{desc}_nolog1p'
+    # kwargs_traj['do_log1p'] = False
 
     # TEMP
     # desc = f'{desc}_hvgs'
@@ -76,12 +76,19 @@ if __name__ == '__main__':
     if sample == 'cells':
         Bs = [-1]
         Pc = Pvar = np.round(0.01 * 2 ** np.arange(0, 6.7, 0.34), 3) # np.round(0.03 * 2 ** np.arange(0, 5, 0.3), 2)
+
+        Pc = Pvar = np.arange(0.05,0.95,0.05) # uniform
         Pt = Pconst = np.ones_like(Pvar)
 
     if sample == 'reads':
         Bs = [-1]
         Pt = Pvar = 10 ** np.arange(-6, -0.5, 0.25)
         Pt = Pvar = 10 ** np.arange(-5, -0.5, 0.5) # TEMP
+        
+        Pt = Pvar = 10 ** np.arange(-5, -0.1, 0.25); repeats = 10  #TEMP2
+
+        Pt = Pvar = np.arange(0.01,0.95,0.05) # uniform
+
         Pc = Pconst = np.ones_like(Pvar)
 
     if sample == 'tradeoff':
