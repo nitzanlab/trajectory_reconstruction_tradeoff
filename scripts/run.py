@@ -62,6 +62,10 @@ if __name__ == '__main__':
     # desc = f'{desc}_nolog1p'
     # kwargs_traj['do_log1p'] = False
 
+    desc = f'{desc}_dosqrt'
+    kwargs_traj['do_log1p'] = False
+    kwargs_traj['do_sqrt'] = True
+
     # TEMP
     # desc = f'{desc}_hvgs'
     # kwargs_traj['do_hvgs'] = True
