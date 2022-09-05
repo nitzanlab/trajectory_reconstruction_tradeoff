@@ -168,8 +168,8 @@ class Trajectory():
         X = lX.T
 
         # center data
-        X_cen = X - X.mean(axis=0) # substract column means
-
+        X_cen = (X.T - X.mean(axis=1)).T  # substract column means
+        # X_cen = X - X.mean(axis=0)
         # compute svd decomposition of X
         U, _, _ = svd(X_cen, full_matrices=False) # U is (genes x min(genes,cells))
 
