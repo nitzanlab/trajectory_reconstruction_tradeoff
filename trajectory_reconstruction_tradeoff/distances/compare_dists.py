@@ -22,6 +22,8 @@ def compare_distances(D0, D):
         mean correlation of distances
     """
     eps = 10e-5
+
+    
     l1 = round(sum(sum(np.abs(np.array(D) - np.array(D0)))) / len(D) ** 2, 3) #TODO: super big change!
     # l1 = np.mean(np.abs(D0-D)[np.triu_indices_from(D0, k=1)])
     l2 = round(sum(sum(((np.array(D) - np.array(D0)) ** 2))) / len(D) ** 2, 3)
@@ -30,7 +32,7 @@ def compare_distances(D0, D):
     ind = np.triu_indices_from(D0, 1)
     lcontrac = D0[ind] / (D[ind] + eps)
     lexpand = D[ind] / (D0[ind] + eps)
-    ldist = np.mean(np.maximum(lcontrac,lexpand))
+    ldist = np.mean(np.maximum(lcontrac, lexpand))
     fcontrac = np.sum(lcontrac > 1) / len(lcontrac)
     fexpand = np.sum(lexpand > 1) / len(lexpand)
     lsp = 0

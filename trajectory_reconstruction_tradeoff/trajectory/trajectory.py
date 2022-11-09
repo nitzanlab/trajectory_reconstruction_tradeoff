@@ -19,7 +19,7 @@ class Trajectory():
 
     def __init__(self, X, D=None, meta=None, outdir=None, 
     do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100,
-    by_radius=False, radius=None, name=''):
+    by_radius=False, radius=None, radius_fold=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
         X      -- counts matrix (cells x genes)
         D      -- if available, ground truth cell-to-cell distances (cells x cells)
@@ -37,10 +37,14 @@ class Trajectory():
         """
         # standardize input
         self.ncells, self.ngenes = X.shape
-        if isinstance(X, pd.DataFrame) and meta is not None:
-            if (X.index != meta.index).any():
-                print('Counts and metadata index differ')
-                return
+        if isinstance(X, pd.DataFrame):
+            genenames = X.columns
+            cellnames = X.index
+            if meta is not None:
+                if (cellnames != meta.index).any():
+                    print('Counts and metadata index differ')
+                    return
+                
         if not isinstance(X, pd.DataFrame):
             genenames = ['g%d' % i for i in range(self.ngenes)]
             cellnames = ['c%d' % i for i in range(self.ncells)] if meta is None else meta.index
@@ -60,6 +64,7 @@ class Trajectory():
         self.n_hvgs = n_hvgs
         self.radius = radius
         self.by_radius = by_radius
+        self.radius_fold = radius_fold
         self.name = name
         self.outdir = outdir
         
@@ -68,31 +73,31 @@ class Trajectory():
                 os.makedirs(self.outdir)
 
         # preprocess
-        self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
+        if self.do_hvgs:
+            self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
         self.pX, self.lX, self.pca = self.preprocess(self.X, return_pca=True)
         
         self.dim =  self.get_dimension() 
-        self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input
+        
         # if self.pca:
             # self.projection = self.compute_projection(self.pca)
-        self.projection = self.compute_projection(self.lX)
+        # self.projection = self.compute_projection(self.lX)
         
+        self.P = None 
 
         if D is None:
             D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
-            by_radius=self.by_radius, radius=self.radius, dim=self.dim)
-        else: # is this fair?
-            print('here')
-            _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
-            by_radius=self.by_radius, radius=self.radius, dim=self.dim)
+            by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim)
+            self.P = P # predecessors
         # D = D / np.max(D) # TODO: removed this late! 
 
-        self.P = P # predecessors
         self.V = None # heavy to compute so only if necessary
         self.D = D
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
-        self.density_0 = T.ds.compute_density(self.D)
+        
+        self.density_0 = None
+        self.reach_0 = None
 
     # def set_n_comp(self, n_comp):
     #     """
@@ -122,6 +127,7 @@ class Trajectory():
         """
         # return data as is without preprocessing
         pX = X.copy()
+        lX = X.copy()
         pca = None
         do_preprocess = self.do_preprocess
 
@@ -200,8 +206,8 @@ class Trajectory():
         # danco = skdim.id.DANCo().fit(self.pX)
         #estimate local intrinsic dimension (dimension in k-nearest-neighborhoods around each point):
         lpca = skdim.id.lPCA().fit_pw(self.pX,
-                                    n_neighbors = 100,
-                                    n_jobs = 1)
+                                    n_neighbors=100,
+                                    n_jobs=1)
 
         #get estimated intrinsic dimension
         if verbose:
@@ -237,21 +243,23 @@ class Trajectory():
         n = int(self.ncells * pc)
         ix = np.random.choice(self.ncells, n, replace=False)
         sX = self.X.iloc[ix, :]
-        sX = sX.astype(int)
+        
         cellnames = sX.index
         genenames = sX.columns
         if pt < 1:
+            sX = sX.astype(int)
             sX = np.random.binomial(sX, pt)
         sX = pd.DataFrame(sX, index=cellnames, columns=genenames)
         return sX, ix
 
-    def subsample(self, pc, pt):
+    def subsample(self, pc, pt, ix=None, verbose=False):
         """
         Subsample cells and reads
         :param X: expression counts
         :param D_true: distances
         :param pc: cell capture probability
         :param pt: transcript capture probability
+        :param ix: index of cells to subsample
         :param n_pc: number of PCs for reduced expression
         :return:
             subsampled expression
@@ -260,14 +268,17 @@ class Trajectory():
             distances (subsampled original distances)
             index of subsampled cells
         """
-        sX, ix = self.subsample_counts(pc, pt)
+        if ix is None:
+            sX, ix = self.subsample_counts(pc, pt)
+        else:
+            sX = self.X.iloc[ix, :]
         sD = self.D[ix][:, ix]  # subsampled ground truth pairwise distances
         # sD_max = np.max(sD) #TODO: BIG CHANGE
         # sD = sD / sD_max
 
         psX, lsX, pca = self.preprocess(sX, return_pca=True)
         psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True,
-        by_radius=self.by_radius, radius=self.radius, dim=self.dim) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
+                                               by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim, verbose=verbose) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
         return sX, psX, lsX, psD, sD, psP, ix, pca
 
@@ -327,9 +338,16 @@ class Trajectory():
         return dws_params
 
 
-    def evaluate(self, sX, psX, lsX, psD, sD, psP, ix, pca, pc, pt, comp_deltas=False, comp_nn_dist=True, 
-                 comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, comp_covariance=False, 
-                 comp_covariance_latent=False, comp_pc_err=True, comp_reach=True, comp_density=True, comp_proj_err=True):
+    def evaluate(self, sX, psX, lsX, psD, sD, psP, ix, pca, pc, pt, 
+                comp_deltas=False, comp_nn_dist=True, 
+                comp_pseudo_corr=False, 
+                comp_exp_corr=False, 
+                comp_vertex_length=False, 
+                comp_covariance=False, 
+                comp_covariance_latent=False, 
+                comp_pc_err=False, 
+                comp_reach=False, comp_density=False, 
+                comp_proj_err=False, verbose=False):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -439,9 +457,11 @@ class Trajectory():
             # density_0 = T.ds.compute_density(sD)
             density = T.ds.compute_density(sD)
             pdensity = T.ds.compute_density(psD)
+            density_est = (np.log(nc) / nc) ** (1 / self.dim)
             # report['density_0'] = density_0
             report['density'] = density
             report['pdensity'] = pdensity
+            report['density_est'] = density_est
 
         if comp_proj_err:
             if verbose:
@@ -454,9 +474,14 @@ class Trajectory():
 
 
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
-                         comp_pseudo_corr=False, comp_exp_corr=False, comp_vertex_length=False, 
-                         comp_covariance=False, comp_covariance_latent=False, 
-                         hvgs=None, n_buckets=10, **kwargs):
+                        comp_pseudo_corr=False, 
+                        comp_exp_corr=False, 
+                        comp_vertex_length=False, 
+                        comp_covariance=False, 
+                        comp_covariance_latent=False, 
+                        comp_reach=False, comp_density=False, 
+                        comp_proj_err=False,
+                        hvgs=None, n_buckets=10, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
         :param X: counts data
@@ -473,6 +498,11 @@ class Trajectory():
         dws_params = self._downsample_params(B, Pc, Pt, verbose)
 
         if comp_vertex_length and self.V is None:
+            if self.P is None:
+                print('Distance matrix provided. Need to edit predecessor computation according to D provided.')
+                _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
+                by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim)
+
             self.V = T.ds.compute_path_vertex_length(self.P)
 
         if comp_pseudo_corr or comp_exp_corr:
@@ -498,9 +528,17 @@ class Trajectory():
         if comp_covariance_latent:
             self.pC = T.ds.compute_covariance(self.pX)
 
-        # if comp_proj_err:
-        
-            
+        if comp_proj_err:
+            if self.projection is None:
+                self.projection = self.compute_projection(self.lX)
+
+        if comp_density:
+            if self.density_0 is None:
+                self.density_0 = T.ds.compute_density(self.D)
+
+        if comp_reach:
+            if self.reach_0 is None:
+                self.reach_0 = T.ds.compute_reach(self.pX) #TODO: give dimension as input            
 
         L = []
 
@@ -514,16 +552,20 @@ class Trajectory():
 
                 # sample
                 try:
-                    subsample_result = self.subsample(pc, pt)
+                    subsample_result = self.subsample(pc, pt, verbose=verbose)
                 except np.linalg.LinAlgError as err:
                     if verbose:
                         print(f'When downsampling with cell probability {pc} and read probability {pt}, got LinAlgError.')
                     continue
                 
-                report = self.evaluate(*subsample_result, pc=pc, pt=pt, 
-                         comp_pseudo_corr=comp_pseudo_corr, comp_exp_corr=comp_exp_corr, comp_vertex_length=comp_vertex_length, 
-                         comp_covariance=comp_covariance, comp_covariance_latent=comp_covariance_latent,
-                         **kwargs)
+                report = self.evaluate( *subsample_result, pc=pc, pt=pt, 
+                                        comp_pseudo_corr=comp_pseudo_corr, 
+                                        comp_exp_corr=comp_exp_corr, 
+                                        comp_vertex_length=comp_vertex_length, 
+                                        comp_covariance=comp_covariance, 
+                                        comp_covariance_latent=comp_covariance_latent, 
+                                        comp_reach=comp_reach, comp_density=comp_density, 
+                                        comp_proj_err=comp_proj_err, verbose=verbose, **kwargs)
                          
                 report = {'pc': pc, 'pt': pt, 'B': B, 
                           'log pc': np.log(pc), 'log pt': np.log(pt), 

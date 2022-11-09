@@ -24,6 +24,16 @@ labelsize = 30
 ticksize = 25
 legendsize = 28
 
+def plot_3d(pX, title=''):
+    """
+    Plots 3d
+    """
+    pX = pX.values if isinstance(pX, pd.DataFrame) else pX
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(pX[:,0], pX[:,1], pX[:,2], s=1)
+    ax.set_title(title)
+    plt.show()
 
 def plot_pca2d(pX, meta=None, color=None, title='', fname=None, ax=None,
                xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, **kwargs):
