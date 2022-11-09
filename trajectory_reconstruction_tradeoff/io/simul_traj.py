@@ -1,12 +1,15 @@
+import math
 from re import L
 import pandas as pd
 import numpy as np
+from scipy.spatial.distance import pdist, squareform
 from trajectory_reconstruction_tradeoff.distances.compute_dists import get_pairwise_distances, get_pairwise_distances_branch
 from prosstt import simulation as sim
 from prosstt import sim_utils as sut
 from prosstt import tree
 from Bio import Phylo
 from io import StringIO
+# from sklearn import datasets
 
 ########################################################################################################################
 #TODO: better handling of this
@@ -161,7 +164,7 @@ def curve_trajectory(nc, R=100, frac_curve=0.5, scale_noise=5, dims=2,reverse_lo
 #     return pX
 
 
-def bending_map(nc, d, R=0.2):
+def bending_map(nc, d, R=0.2, return_distances=False):
     """
     Generate bending map
     :param d: the latent dimension of 
@@ -172,14 +175,54 @@ def bending_map(nc, d, R=0.2):
         print("d must be >= 1 as it is the latent dimension of the manifold")
         return
 
-    t = np.random.uniform(-0.5, 0.5, (nc,d))
+    t = np.random.uniform(-0.5, 0.5, (nc, d))
     B1 = R * np.sin(t[:,0]/R) # first dimension of B
     Bd = R * (1 - np.cos(t[:,0]/R)) # last dimension of B
     B = np.vstack((B1, Bd)).T
     if d > 1:
         B = np.concatenate((B1.reshape((-1,1)), t[:,1:], Bd.reshape((-1,1))), axis=1)
-        
-    return B
+    
+    if return_distances:
+        Dt = squareform(pdist(t))
+        return B, Dt    
+    return pd.DataFrame(B)
+
+
+def swiss_roll(nc, sigma=0, t1_fold=1, t2_fold=1, return_distances=False):
+    """
+    Generate swiss roll
+    :param nc:
+    :param sigma:
+    :return:
+    """
+    # from Arias-Castro et al., not working
+    # t1 = np.random.uniform(-9, 15, (nc, 1)) * math.pi/2 * fold_t1
+    # t2 = np.random.uniform(-40, 40, (nc, 1)) * fold_t2
+
+    # t = np.hstack((t1, t2))
+    # B = np.hstack((t1*np.cos(t1), t2, t1*np.sin(t1)))
+
+    # from sklearn.datasets import make_swiss_roll
+    # B,t = make_swiss_roll(n_samples=nc, noise=sigma)
+    
+    t1 = t1_fold * 1.5 * np.pi * (1 + 2 * np.random.uniform(0, 1, nc))
+    t2 = t2_fold * 21 * np.random.uniform(0, 1, nc)
+
+    x = t1 * np.cos(t1)
+    y = t2
+    z = t1 * np.sin(t1)
+
+    B = np.vstack((x, y, z)).T
+    # X += noise * generator.randn(3, nc)
+    t = np.vstack((t1,t2)).T
+    
+    if return_distances:
+        Dt = squareform(pdist(t))
+        return B, Dt    
+    return pd.DataFrame(B)
+
+
+
 
 def line_trajectory(nc, endpoint1=(10,0), endpoint2=(0,10), std=1, nonneg=True):
     """
