@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pylab as plt
+from scipy.sparse import csr_matrix
 from sklearn.neighbors import kneighbors_graph
 from scipy.sparse.csgraph import dijkstra
 from scipy.spatial.distance import squareform, pdist
@@ -27,7 +28,7 @@ def get_pairwise_distances_branch(pseudotime, branch, branch_time_dict):
     # D = D / dmax
     return D
 
-def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False, verbose=False, by_radius=False, radius=None, dim=None):
+def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False, verbose=False, by_radius=False, radius=None, radius_fold=2, dim=None):
     """
     Computes cells geodesic distances as shortest path in the minimal-fully-connected kNN graph
     :param pX: cells reduced representation 
@@ -41,18 +42,19 @@ def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False
     
     if by_radius:
         if radius is None:
-            radius = 2 * (np.log(n)/n)**(1/(2*dim))
+            radius = radius_fold * (np.log(n)/n)**(1/(2*dim))
         W = squareform(pdist(pX))
         A = np.zeros((n,n))
         A[W < radius] = W[W < radius]
+        A = csr_matrix(A)
         DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
         D = DP[0] if return_predecessors else DP
         if verbose:
             print(f'Running with radius {radius}')
             if np.sum(D) == np.inf:
                 print('Graph is disconnected')
-    
-    if radius is None:   
+            
+    else:   
         neighbors = 2
         while (np.sum(D) == np.inf):
             neighbors = neighbors + 1
@@ -61,7 +63,8 @@ def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False
             D = DP[0] if return_predecessors else DP
         if verbose:
             print(f'Running with {neighbors} neighbors')
-
+    if verbose: 
+        print(f'Average number of neighbors: {(A > 0).sum(1).mean()}')
     # dmax = np.max(D) # dmax = np.max(D) # TODO: BIG CHANGE
     # D = D / dmax
     if return_adjacency:
