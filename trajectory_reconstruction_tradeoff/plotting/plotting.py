@@ -17,12 +17,25 @@ from .plotting_configs import get_color_col
 import networkx as nx
 from sklearn.neighbors import kneighbors_graph
 from sklearn.decomposition import PCA
+from scipy import optimize
+from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
+# from .zero_linear_model import ZeroLinearModel
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
 labelsize = 30
 ticksize = 25
 legendsize = 28
+
+
+
+
+models = {'linear': LinearRegression,
+          'huber': HuberRegressor,
+          # 'ransac': RANSACRegressor,
+          # 'zerolinear': ZeroLinearModel
+}
+
 
 def plot_3d(pX, title=''):
     """
@@ -133,11 +146,20 @@ def plot_project_spring_layout(pX, n_comp=2, **kwargs):
     plot_spring_layout(pX=ppX, **kwargs)
 
 
+
+
+
+
+
+
+
+
+
 def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
-                  color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, 
+                  color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, xcol_twin=None, twin_values=None,
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
                   labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
-                  add_fit=False, **kwargs):
+                  add_fit=False, model_type='huber', **kwargs):
     """
     Plot reconstruction error as a function of sampling probability (alternatively, plot results of any two parameters)
     :param L: dataframe with sampling parameters and errors
@@ -191,13 +213,47 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
     ax.xaxis.set_major_locator(plt.MaxNLocator(3))
     ax.yaxis.set_major_locator(plt.MaxNLocator(3))
 
+    if xcol_twin is not None and xcol_twin in L.columns:
+        ax_twin = ax.twiny()
+        # twin_data = L_grp[[xcol, xcol_twin]].mean()
+        x2 = L_grp[xcol_twin].mean().values
+        n = len(x2)
+        n_ticks = 4
+
+        min_xcol_twin = x2.min()
+        max_xcol_twin = x2.max()
+        x2_values = [t for t in twin_values if (t > min_xcol_twin and t < max_xcol_twin)]
+            
+        if x2_values is not None and len(x2_values) > 0:
+            pts = pd.Series(x, index=x2)
+            new_pts = pd.Series(np.nan, index=x2_values)
+            x2_x = pd.concat((pts, new_pts))
+            x2_x = x2_x.interpolate(method='index').groupby(level=0).mean()
+            new_tick_locations = x2_x.loc[x2_values].values
+            new_tick_values = x2_values
+        else:
+            idx = [int(n*i/(n_ticks+1)) for i in np.arange(1, n_ticks)]
+            new_tick_locations = x[idx]
+            new_tick_values = x2[idx].astype(int)
+
+        ax_twin.set_xlim(ax.get_xlim())
+        ax_twin.set_xticks(new_tick_locations)
+        ax_twin.set_xticklabels(new_tick_values) # TODO: temp rounding
+        ax_twin.tick_params(axis='x', labelsize=ticksize)
+        ax_twin.xaxis.label.set_size(labelsize)
+    
+        # ax_twin.set_xlabel(r"Modified x-axis: $1/(1+X)$")
+
+
+
     # add linear fit
     if add_fit:
-        model_ = linear_model.LinearRegression()
+        model_ = models[model_type]()
         model_.fit(L[[xcol]], L[ycol])
         if verbose:
             print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
-        ax.plot(L[xcol], model_.predict(L[[xcol]]), color='black', linewidth=4, linestyle='--')
+        x_new = np.linspace(L[xcol].min(), L[xcol].max(), 100)
+        ax.plot(x_new, model_.predict(x_new.reshape(-1,1)), color='black', linewidth=4, linestyle='--')
 
         # add score
         r = 2 # R^2 round factor
@@ -209,12 +265,12 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
 
 
 def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
-                            structures=[], colors={}, color='black', axs=None, title=None, **kwargs):
+                            structures=[], color_groupby='trajectory type', colors={}, color='black', axs=None, title=None, **kwargs):
     """
     """
     # L_tradeoff['log pc'] = np.log(L_tradeoff['pc'])
     Bs = L_tradeoff['B'].unique()
-    L_tradeoff_grp = L_tradeoff.groupby(['trajectory type'])
+    L_tradeoff_grp = L_tradeoff.groupby([color_groupby])
     structures = list(L_tradeoff_grp.groups.keys()) if structures == [] else structures
     colors = colors if colors != {} else {s: color for s in structures}
     
