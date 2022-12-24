@@ -79,26 +79,27 @@ if __name__ == '__main__':
     print(f'Sampling by {sample}')
     if sample == 'cells':
         Bs = [-1]
-        Pc = Pvar = np.round(0.01 * 2 ** np.arange(0, 6.7, 0.34), 3) # np.round(0.03 * 2 ** np.arange(0, 5, 0.3), 2)
+        #Pc = Pvar = np.round(0.01 * 2 ** np.arange(0, 6.7, 0.34), 3) # 
+        Pc = Pvar = np.round(0.03 * 2 ** np.arange(0, 5, 0.3), 2)
 
-        Pc = Pvar = np.arange(0.05,0.95,0.05) # uniform
+        #Pc = Pvar = np.arange(0.05,0.95,0.05) # uniform
         Pt = Pconst = np.ones_like(Pvar)
 
     if sample == 'reads':
         Bs = [-1]
         Pt = Pvar = 10 ** np.arange(-6, -0.5, 0.25)
-        Pt = Pvar = 10 ** np.arange(-5, -0.5, 0.5) # TEMP
+        #Pt = Pvar = 10 ** np.arange(-5, -0.5, 0.5) # TEMP
         
-        Pt = Pvar = 10 ** np.arange(-5, -0.1, 0.25); repeats = 10  #TEMP2
+        #Pt = Pvar = 10 ** np.arange(-5, -0.1, 0.25); repeats = 10  #TEMP2
 
-        Pt = Pvar = np.arange(0.01,0.95,0.05) # uniform
+        #Pt = Pvar = np.arange(0.01,0.95,0.05) # uniform
 
         Pc = Pconst = np.ones_like(Pvar)
 
     if sample == 'tradeoff':
         Bs = 10 ** np.linspace(-5, -1, 10)
         Pc = Pvar = np.arange(0.01, 0.9, 0.01)
-        Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
+        #Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
         Pt = None
 
 
