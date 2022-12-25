@@ -96,8 +96,14 @@ class Trajectory():
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
         self.meta['original_idx'] = np.arange(self.ncells)
         
+        # for arias-castro analysis
         self.density_0 = None
         self.reach_0 = None
+
+        # for expression analysis
+        self.exp_corr_hvgs = None
+        self.n_buckets = None
+        self.buckets_mean = None
 
     # def set_n_comp(self, n_comp):
     #     """
@@ -216,11 +222,12 @@ class Trajectory():
         return np.mean(lpca.dimension_pw_)
 
     # @staticmethod # TODO: make static?
-    def get_hvgs(self, n_hvgs=1000, **kwargs):
+    def get_hvgs(self, n_hvgs=1000, perc_top_hvgs=None, **kwargs):
         """
         Uses Scanpy highly_variable_genes computation
         :return:
         """
+        n_hvgs = int(self.ngenes * perc_top_hvgs) if perc_top_hvgs is not None else n_hvgs
         adata = sc.AnnData(self.X)
         sc.pp.log1p(adata)
         sc.pp.highly_variable_genes(adata, n_top_genes=n_hvgs, **kwargs)
@@ -399,9 +406,13 @@ class Trajectory():
             report['nn_dist_npsD'] = npsD[np.arange(nc), idxmin].mean()
 
         if comp_pseudo_corr or comp_exp_corr:
-            pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
-            dpt_corr = np.corrcoef(smeta['dpt'], pseudo)[0, 1]
-            report['dpt_corr'] = dpt_corr
+            try:
+                pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
+                dpt_corr = np.corrcoef(smeta['dpt'], pseudo)[0, 1]
+                report['dpt_corr'] = dpt_corr
+            except:
+                pseudo = None
+                print('Could not compute pseudotime')
 
         if comp_vertex_length:
             psV = T.ds.compute_path_vertex_length(psP)
@@ -425,13 +436,14 @@ class Trajectory():
         if comp_covariance_latent:
             psC = T.ds.compute_covariance(psX)
             report['cov_latent_err'] = np.linalg.norm(self.pC - psC)
-        # if comp_exp_corr:
-        #     or_s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], smeta['dpt'], n_buckets=n_buckets)
-        #     s_bucket_mean = T.dw.get_mean_bucket_exp(sX[hvgs], pseudo, n_buckets=n_buckets)
-        #     or_exp_corr = T.dw.expression_correlation(bucket_mean, or_s_bucket_mean)
-        #     exp_corr = T.dw.expression_correlation(bucket_mean, s_bucket_mean)
-        #     report['exp_corr'] = exp_corr
-        #     report['or_exp_corr'] = or_exp_corr
+        
+        if comp_exp_corr and (pseudo is not None):
+            or_s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], smeta['dpt'], n_buckets=self.n_buckets)
+            s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], pseudo, n_buckets=self.n_buckets)
+            or_exp_corr = T.dw.expression_correlation(self.buckets_mean, or_s_buckets_mean)
+            exp_corr = T.dw.expression_correlation(self.buckets_mean, s_buckets_mean)
+            report['exp_corr'] = exp_corr
+            report['or_exp_corr'] = or_exp_corr
 
         # compute change of pc direction
         if comp_pc_err:
@@ -510,17 +522,19 @@ class Trajectory():
 
         if comp_exp_corr:
             # select genes for reconstruction evaluation
-            if hvgs is None:
-                perc_top_hvgs = 0.10
-                n_hvgs = int(self.ngenes * perc_top_hvgs)  # 10 top hvgs
-                hvgs = self.get_hvgs(n_hvgs=n_hvgs)[0]
+            if self.exp_corr_hvgs is None:
+
+                hvgs = self.get_hvgs(perc_top_hvgs=0.10)[0]
+
+                # select genes with high expression
                 hvgs_mean = self.X[hvgs].mean()
                 n_hhvgs = min(20, len(hvgs))
-                hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
-                if verbose:
-                    print('Using %d genes' % len(hvgs))
+                self.exp_corr_hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
 
-            bucket_mean = T.dw.get_mean_bucket_exp(self.X[hvgs], self.meta['dpt'], n_buckets=n_buckets)
+                if verbose:
+                    print('Using %d genes' % len(self.exp_corr_hvgs))
+            self.n_buckets = n_buckets
+            self.buckets_mean = T.dw.get_mean_bucket_exp(self.X[self.exp_corr_hvgs], self.meta['dpt'], n_buckets=self.n_buckets)
 
         if comp_covariance:
             self.C = T.ds.compute_covariance(self.X)
