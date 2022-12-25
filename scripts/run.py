@@ -30,7 +30,7 @@ def parse():
     parser.add_argument('--datadir', type=str, default=datadir, help='Data directory')
     parser.add_argument('--outdir', type=str, default=outdir, help='Output directory')
     parser.add_argument('--desc', type=str, default='', help='Short description of run appended to filename')
-    parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff'], help='Sample choice')
+    parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff', 'exp'], help='Sample choice')
     parser.add_argument('--repeats', type=int, default=50, help='An optional integer positional argument')
 
     
@@ -50,9 +50,20 @@ if __name__ == '__main__':
     sample = args.sample
     repeats = args.repeats
     desc = args.desc
+    datadir = args.datadir
 
     kwargs_traj = {}
-    
+    kwargs_tradeoff = {}
+
+
+    if sample == 'exp':
+        kwargs_traj['n_comp'] = 50
+        Bs = [0.0005]
+        Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
+        Pc = Pc[Pc < 1]
+        Pt = None
+        kwargs_tradeoff = {'comp_exp_corr': True, 'comp_pseudo_corr': True}
+
     # # TEMP
     # desc = f'{desc}_original_locs'
     # kwargs_traj['do_original_locs'] = True
@@ -71,7 +82,7 @@ if __name__ == '__main__':
     # kwargs_traj['do_hvgs'] = True
 
     # load trajectory
-    X, D, meta = T.io.read_dataset(dataset, args.datadir)
+    X, D, meta = T.io.read_dataset(dataset, datadir)
     traj = T.tr.Trajectory(X, meta=meta, **kwargs_traj)
     
 
@@ -99,14 +110,14 @@ if __name__ == '__main__':
     if sample == 'tradeoff':
         Bs = 10 ** np.linspace(-5, -1, 10)
         Pc = Pvar = np.arange(0.01, 0.9, 0.01)
-        #Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
+        # Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
         Pt = None
 
 
     L_per_traj = []
     for B in Bs:
         print(B)
-        L_per_traj.append(traj.compute_tradeoff(B=B, Pc=Pc, Pt=Pt, repeats=repeats))
+        L_per_traj.append(traj.compute_tradeoff(B=B, Pc=Pc, Pt=Pt, repeats=repeats, **kwargs_tradeoff))
     L = pd.concat(L_per_traj)
 
     L['trajectory type'] = dataset

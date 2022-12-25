@@ -12,13 +12,21 @@ import pandas as pd
 def get_pseudo_from_adata(adata, use_rep='X_pca', idx_col='original_idx', n_neighbors=15, verbose=True):
     """
     Compute pseudotime
-    adata -
+    adata - AnnData object
     use_rep -
     idx_col - colname in meta that contains the true(or proxy) ordering (for defining root)
     n_neighbors - starting number of neighbors
     """
+    n_neighbors = min(adata.shape[0], n_neighbors)
+
     while True:
-        sc.pp.neighbors(adata, use_rep=use_rep, method='gauss', n_neighbors=n_neighbors)
+        try:
+            sc.pp.neighbors(adata, use_rep=use_rep, method='gauss', n_neighbors=n_neighbors)
+        except ValueError:
+            print(f'Failed to compute neighbors for psuedotime ordering')
+            print(f'with n cells: {adata.shape[0]}, neighbors: {n_neighbors}, features: {adata.obsm[use_rep].shape[1]}, total reads: {adata.X.sum()}')
+            
+            return
         sc.tl.diffmap(adata)
     #     adata.obs['original_idx'] = np.arange(adata.shape[0])
         adata.uns['iroot'] = np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0]
@@ -64,4 +72,7 @@ def get_pseudo_bucket(X, meta, n_buckets=10, idx_col='original_idx', **kwargs):
     idx_col - colname in meta that contains the true(or proxy) ordering (for defining root)
     """
     pseudo = get_pseudo(X, meta, idx_col=idx_col, **kwargs)
-    return pd.qcut(pseudo, q=n_buckets, labels=np.arange(n_buckets))
+    if pseudo is not None:
+        return pd.qcut(pseudo, q=n_buckets, labels=np.arange(n_buckets))
+    else:
+        return None

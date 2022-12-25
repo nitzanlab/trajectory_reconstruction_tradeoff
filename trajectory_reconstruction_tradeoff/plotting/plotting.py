@@ -19,7 +19,7 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.decomposition import PCA
 from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
-# from .zero_linear_model import ZeroLinearModel
+from .zero_linear_model import ZeroLinearModel
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -33,7 +33,7 @@ legendsize = 28
 models = {'linear': LinearRegression,
           'huber': HuberRegressor,
           # 'ransac': RANSACRegressor,
-          # 'zerolinear': ZeroLinearModel
+          'zerolinear': ZeroLinearModel
 }
 
 
@@ -267,6 +267,18 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
 def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
                             structures=[], color_groupby='trajectory type', colors={}, color='black', axs=None, title=None, **kwargs):
     """
+    Plot tradeoff experiments
+    :param L_tradeoff: pandas dataframe with columns: pc, l1, B, trajectory type, level_0
+    :param desc: description of the experiment
+    :param plot_std: number of standard deviations to plot
+    :param plot_pc_opt: plot pc_opt
+    :param sharey: share y axis
+    :param plot_pcs: plot pcs
+    :param xcol: x column
+    :param ycol: y column
+    :param structures: list of structures to plot
+    :param color_groupby: column to group by
+    :param colors: dictionary of colors
     """
     # L_tradeoff['log pc'] = np.log(L_tradeoff['pc'])
     Bs = L_tradeoff['B'].unique()
@@ -444,3 +456,41 @@ def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname='',
         frames.append(frame)
 
     gif.save(frames, fname, duration=duration, unit=unit, between=between, **kwargs)
+
+def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
+    axis_nada = alt.Axis(grid=False, labels=False, ticks=False)
+    scale_nz = alt.Scale(zero=False)
+
+    color_var = '#b1b1b1'
+    color_few_cells = '#df755b'
+    color_med_cells = '#5bb844'
+    color_lots_cells = '#7997dc'
+
+    back_color_truth = '#d8d8d8'
+    back_color_few_cells = '#fde7e2'
+    back_color_med_cells = '#e2f7df'
+    back_color_lots_cells = '#eaf0fc'
+
+    colors = [color_few_cells, color_med_cells, color_lots_cells, ]
+    back_colors = [back_color_few_cells, back_color_med_cells, back_color_lots_cells, back_color_truth]
+
+    xlabel = ''#'Cell sampling probability (pc)'
+    x = alt.X('pc:O', #scale=alt.Scale(type='log', base=1.000001),
+              title=xlabel,)# axis=alt.Axis(grid=False, values=np.linspace(0,1, 6)))
+#     yticks = np.linspace(res[ycol].min(), res[ycol].max(), 6)
+    y = alt.Y(ycol + ':Q', axis=alt.Axis(grid=False, tickCount=6), scale=scale_nz, title=ylabel)
+    pl_all = alt.Chart(res, width=300, height=300).mark_boxplot(outliers=False).encode(x=x,
+                                                                         y=y,
+                                                                         color=alt.value(color_var))
+
+
+    pls = [pl_all]
+
+    for i, nc in enumerate(Pcs):
+
+    #     print(df[sel2]['pc'].unique())
+        pls.append(alt.Chart(res[res['pc'] == nc]).mark_boxplot(outliers=False).encode(x=x,
+                                                                 y=y,
+                                                                 color=alt.value(colors[i])))
+
+    return to_paper(alt.layer(*pls))
