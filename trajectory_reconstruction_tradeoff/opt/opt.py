@@ -103,42 +103,61 @@ def get_pc_min_pred_log(m1, m2, B):
 #     return ydata_hat
     
 
-def fit_reconstruction_err(L):
-    """
-    Fit each reconstruction error curve by:
-    \varepsilon = b * (x2/x1) + beta * x1 +c
-    where x1 corresponds to 1/sqrt(pc) and x2 corresponds to sqrt(B)
-    """
-    ntrajs = L['trajectory type'].value_counts().shape[0] if 'trajectory type' in L.columns else 0
-    if (ntrajs > 1):
-        print(f'Computes fit of a single trajectory. Data seems to include: {ntrajs} trajectories.')
+# def fit_reconstruction_err(L):
+#     """
+#     Fit each reconstruction error curve by:
+#     \varepsilon = b * (x2/x1) + beta * x1 +c
+#     where x1 corresponds to 1/sqrt(pc) and x2 corresponds to sqrt(B)
+#     """
+#     ntrajs = L['trajectory type'].value_counts().shape[0] if 'trajectory type' in L.columns else 0
+#     if (ntrajs > 1):
+#         print(f'Computes fit of a single trajectory. Data seems to include: {ntrajs} trajectories.')
     
-    gL = L.groupby(['B','pc']).mean().reset_index()
+#     # gL = L.groupby(['B','pc']).mean().reset_index()
     
-    # def cov_err(X, b, beta, c):
-    #     x1,x2 = X
-    #     y = b*(x2/x1) + beta*x1 + c
-    #     return y
+#     # def cov_err(X, b, beta, c):
+#     #     x1,x2 = X
+#     #     y = b*(x2/x1) + beta*x1 + c
+#     #     return y
 
+#     def cov_err(X, b, beta, a, alpha):
+#         x1,x2 = X
+#         y = np.max(b*(x2/x1) + a, beta*x1 + alpha)
+#         return y
+
+#     xdata1 = L['sqrt inv pc'].values
+#     xdata2 = np.sqrt(L['B'].values)
+#     xdata = (xdata1, xdata2)
+#     ydata = L['l1'].values
+#     parameters, _ = curve_fit(cov_err, xdata, ydata)
+
+#     ydata_hat = cov_err(xdata, *parameters)
+    
+#     # plt.plot(xdata, ydata, 'o', label='data')
+#     # plt.plot(xdata, ydata_hat, '-', label='fit')
+    
+#     L['pred l1 fit'] = ydata_hat
+#     return L
+
+def fit_reconstruction_err(xdata1, xdata2, ydata):
+    """
+    Fit reconstruction error curves by:
+    ydata = max(alpha + beta * xdata1, a + b * xdata2)
+    """
+    
     def cov_err(X, b, beta, a, alpha):
         x1,x2 = X
-        y = np.max(b*(x2/x1) + a, beta*x1 + alpha)
+        # w = x1 / (x1 + x2)
+        # y = w*(b*x2 + a) + (1-w)*(beta*x1 + alpha)
+        y = np.maximum(b*x2 + a, beta*x1 + alpha)
         return y
 
-    xdata1 = gL['sqrt inv pc'].values
-    xdata2 = np.sqrt(gL['B'].values)
     xdata = (xdata1, xdata2)
-    ydata = gL['l1'].values
     parameters, _ = curve_fit(cov_err, xdata, ydata)
 
     ydata_hat = cov_err(xdata, *parameters)
     
-    # plt.plot(xdata, ydata, 'o', label='data')
-    # plt.plot(xdata, ydata_hat, '-', label='fit')
-    
-    gL['pred l1 fit'] = ydata_hat
-    return gL
-
+    return ydata_hat
 
 
 
