@@ -36,19 +36,95 @@ models = {'linear': LinearRegression,
           'zerolinear': ZeroLinearModel
 }
 
+def to_paper(pl):
+    """
+    Beautify altair chart 
+    """
+    labelFontSize=15
+    titleFontSize=20
+    fontSize=20
 
-def plot_3d(pX, title=''):
+    pl = pl.configure_view(strokeOpacity=0)
+    pl = pl.configure_axis(labelFontSize=labelFontSize, titleFontWeight='normal', titleFontSize=titleFontSize)
+    pl = pl.configure_title(fontSize=fontSize)
+    pl = pl.configure_legend(titleFontSize=labelFontSize, labelFontSize=labelFontSize)
+
+    return pl
+    
+def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
+               xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, palette=None, dazim=90, delev=-20, **kwargs):
     """
-    Plots 3d
+    Plot 3d 
+    :param pX: expression reduced representation (cells x reduced dim)
+    :param meta: meta data (cells x meta dim)
+    :param color: meta data column to color by
+    :param title: title of plot
+    :param fname: file name to save plot to
+    :param ax: axis to plot on
+    :param colorlabel: label for color
+    :param legend: whether to show legend
+    :param kwargs: additional arguments to pass to sns.scatterplot
     """
+    
+    ax_none = ax is None
+    if ax_none:
+        # axes instance
+        fig = plt.figure(figsize=(6,6))
+        ax = Axes3D(fig, auto_add_to_figure=False)
+        fig.add_axes(ax)
+
+    
     pX = pX.values if isinstance(pX, pd.DataFrame) else pX
-    fig = plt.figure(figsize=(8,8))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(pX[:,0], pX[:,1], pX[:,2], s=1)
-    ax.set_title(title)
-    plt.show()
+    
+    df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1]})
 
-def plot_pca2d(pX, meta=None, color=None, title='', fname=None, ax=None,
+    color = get_color_col(meta, color_col=color)
+    colorlabel = color.title() if (colorlabel is None) and color else colorlabel
+
+    if (meta is not None) and color and palette:# in meta.columns):
+        df[colorlabel] = meta[color].values
+        kwargs['c'] = df[colorlabel].map(palette)
+        # kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
+
+    # plot
+    ax.scatter(pX[:,0], pX[:,1], pX[:,2], **kwargs)
+    # ax.set_xlabel('X Label')
+    # ax.set_ylabel('Y Label')
+    # ax.set_zlabel('Z Label')
+
+    # # legend
+    # plt.legend(*sc.legend_elements(), bbox_to_anchor=(1.05, 1), loc=2)
+
+    # # save
+    # plt.savefig("scatter_hue", bbox_inches='tight')
+
+    # sns.scatterplot(data=df, x=xlabel, y=ylabel, ax=ax, **kwargs)
+    # ax.scatter(pX[:,0], pX[:,1], pX[:,2], s=1)
+    
+    ax.set_title(title, fontsize=titlesize)
+    # ax.axis('off')
+
+    # Add a legend
+    if color and legend:
+        ax.legend(fontsize=legendsize)
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
+        ax.legend(handletextpad=0.01,
+                  loc='lower center', 
+                  bbox_to_anchor=(0.5, -0.5),
+                  ncol=2, fontsize=20, frameon=False)
+    elif color and not legend:
+        ax.get_legend().remove()
+
+    ax.view_init(ax.elev + delev, ax.azim + dazim)
+    if fname is not None:
+        plt.savefig(fname)
+    elif ax_none:
+        plt.show()
+
+
+
+def plot_2d(pX, meta=None, color=None, title='', fname=None, ax=None,
                xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, **kwargs):
     """
     Plot expression in reduced space
@@ -116,7 +192,7 @@ def plot_project_pca2d(pX, n_comp=2, **kwargs):
     Projects and plots pca 2d
     """
     ppX = project(pX, n_comp=n_comp)
-    plot_pca2d(ppX, **kwargs)
+    plot_2d(ppX, **kwargs)
 
 
 def plot_spring_layout(pX=None, A=None, neighbors=2, meta=None, verbose=False, node_size=3, **kwargs):
@@ -494,3 +570,4 @@ def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
                                                                  color=alt.value(colors[i])))
 
     return to_paper(alt.layer(*pls))
+    # return alt.layer(*pls)

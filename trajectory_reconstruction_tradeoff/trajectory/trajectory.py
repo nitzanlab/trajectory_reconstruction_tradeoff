@@ -11,13 +11,18 @@ from scipy.linalg import svd
 
 epsilon = 10e-10
 
+def unique_list(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
 
 class Trajectory():
     """
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, outdir=None, 
+    def __init__(self, X, D=None, meta=None, milestone_network=None, outdir=None, 
     do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100,
     by_radius=False, radius=None, radius_fold=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
@@ -49,6 +54,19 @@ class Trajectory():
             genenames = ['g%d' % i for i in range(self.ngenes)]
             cellnames = ['c%d' % i for i in range(self.ncells)] if meta is None else meta.index
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
+
+        # order data by milestone net
+        if milestone_network is not None:
+            if isinstance(milestone_network, pd.DataFrame) and (set(['from', 'to']) in set(milestone_network.columns)) and ('milestone_id' in meta.columns):    
+            
+                milestone_ordering = unique_list(list(milestone_network['from'].values) + list(milestone_network['to'].values))
+                assert(meta['milestone_id'].isin(milestone_ordering).all())
+                dct = {v: i for i, v in enumerate(milestone_ordering)}
+                idx = np.argsort(meta['milestone_id'].map(dct), kind='mergesort')
+                meta = meta.iloc[idx]
+                X = X.iloc[idx]
+                if D is not None:
+                    D = D[idx, :][:, idx]
 
         # save configs
         self.X = X
@@ -93,8 +111,9 @@ class Trajectory():
 
         self.V = None # heavy to compute so only if necessary
         self.D = D
+        self.milestone_network = milestone_network
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
-        self.meta['original_idx'] = np.arange(self.ncells)
+        self.meta['Trajectory_idx'] = np.arange(self.ncells)
         
         # for arias-castro analysis
         self.density_0 = None
@@ -485,6 +504,88 @@ class Trajectory():
         return report
 
 
+    def eval_dimensionality_perp(self, group_col, source, sinks, use_rep='log1p'):
+        """
+        Mean norm to subspace of source and sink cell types (Pusuluri et al. 2019)
+        """
+
+        # g - number of genes
+        # n - number of cells
+        # p - number of types
+
+        # get mean expression of source and sink cell types
+        X = self.lX if use_rep == 'log1p' else self.X
+        group_X = pd.concat((self.meta[group_col], X), axis=1)
+        group_mean = group_X.groupby(group_col).mean()
+        sinks = sinks if isinstance(sinks, list) else [sinks]
+        source_exp = group_mean.loc[source]
+        sinks_exp = group_mean.loc[sinks]
+
+        S = X.T # g x n - expression
+        g = S.shape[0]
+
+        # xsi = adata.X[[1,-1],:].T # g x p - cell type expression
+        # grp_ids = [source] + fates
+        xsi = np.vstack((source_exp, sinks_exp)).T # g x p - cell type mean expression
+
+        m = 1.0/g * np.dot(S.T, xsi) # n x p - similarity of expression to cell type expression
+
+        A = 1.0/g * np.dot(xsi.T, xsi) # p x p - similarity bw types
+        Ainv = np.linalg.pinv(A) # p x p - inverse A
+
+        a = np.dot(m, Ainv) # n x p - weighted similarity, 
+
+        S_proj = np.dot(xsi, a.T) # g x n - projection of expression on type ab 
+        S_perp = (S - S_proj) # remaining expression
+
+        S_perp_norm = np.linalg.norm(S_perp, axis=0)
+
+        # return np.mean(S_perp_norm)
+        a = pd.DataFrame(a, index=self.meta.index, columns=[source] + sinks)
+        S_perp_norm = pd.Series(S_perp_norm, index=self.meta.index)
+
+        return a, S_perp_norm
+
+
+
+    def eval_linear_regression(self, group_col, source, sinks, use_rep='log1p'):
+        """
+        Mean norm to subspace of source and sink cell types (Pusuluri et al. 2019)
+        """
+
+        # g - number of genes
+        # n - number of cells
+        # p - number of types
+
+        # get mean expression of source and sink cell types
+        X = self.lX if use_rep == 'log1p' else self.X
+        group_X = pd.concat((self.meta[group_col], X), axis=1)
+        group_mean = group_X.groupby(group_col).mean()
+        sinks = sinks if isinstance(sinks, list) else [sinks]
+        source_exp = group_mean.loc[source]
+        sinks_exp = group_mean.loc[sinks]
+
+        # w - a (n x p)
+        # A - xsi (g x p)
+        # y - S (g x n)
+        
+        y = X.T # g x n - expression
+        A = np.vstack((source_exp, sinks_exp)).T # g x p - cell type mean expression
+
+        # w^T = y^TA(A^TA)^(-1) 
+        wT = np.dot(y.T, np.dot(A, np.linalg.pinv(np.dot(A.T,A))))
+
+        S_proj = np.dot(A, wT.T) # g x n - projection of expression on type ab 
+        S_perp = (y - S_proj) # remaining expression
+
+        S_perp_norm = np.linalg.norm(S_perp, axis=0)
+
+        # return np.mean(S_perp_norm)
+        a = pd.DataFrame(wT, index=self.meta.index, columns=[source] + sinks)
+        S_perp_norm = pd.Series(S_perp_norm, index=self.meta.index)
+
+        return a, S_perp_norm
+
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
                         comp_pseudo_corr=False, 
                         comp_exp_corr=False, 
@@ -604,9 +705,25 @@ if __name__ == '__main__':
     nper_seg = int(ncells / nsegs)
     newick = "((C:%d)B:%d,(D:%d)E:%d)A:%d;" % ((nper_seg,) * nsegs)
     # newick = '((((A:%d)B:%d)C:%d)D:%d)E:%d;' % ((nper_seg,) * nsegs)
+    from scipy.spatial.distance import cdist
+    # X, D_true, meta = T.io.simulate(newick)
+    datasets = ['beta', 'hayashi']
+    for dataset in datasets:
+        print(dataset)
+        X, _, meta, mn = T.io.read_dataset(dataset=dataset, dirname='datasets/')
+        traj = Trajectory(X, meta=meta, milestone_network=mn)
+        L = traj.compute_tradeoff(B=-1, Pc=[0.05,0.55], comp_pseudo_corr=True, repeats=2)
+        print(L)
+        source = mn.iloc[0]['from']
+        after_source = mn.iloc[0]['to']
+        sink = mn.iloc[-1]['to']
+        source_exp = traj.X[traj.meta['milestone_id'] == source].mean()
+        aftersource_exp = traj.X[traj.meta['milestone_id'] == after_source].mean()
+        sink_exp = traj.X[traj.meta['milestone_id'] == sink].mean()
+        print(np.linalg.norm(source_exp-sink_exp) / traj.ngenes)
+        
+        # check expression distance bw first and last timepoint
 
-    X, D_true, meta = T.io.simulate(newick)
-    traj = Trajectory(X, meta=meta)
 #     X = pd.DataFrame(X)
 
 #     adata = sc.AnnData(X)

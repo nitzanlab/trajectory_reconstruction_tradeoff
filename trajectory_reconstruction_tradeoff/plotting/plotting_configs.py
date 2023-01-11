@@ -36,7 +36,8 @@ def is_prosstt(dataset):
 
 colors_datasets = {**colors_simul, **colors_real}
 
-
+def get_group_cols(meta):
+    return list(set(meta.columns).intersection(color_col_names))
 
 def get_color_col(meta=None, color_col=None, verbose=False):
     """
@@ -46,7 +47,7 @@ def get_color_col(meta=None, color_col=None, verbose=False):
         if verbose:
             print(f'metadata is of type {type(meta)}. metadata has to be a dataframe')
         return None
-    color = color_col if color_col else list(set(meta.columns).intersection(color_col_names))
+    color = color_col if color_col else get_group_cols(meta)
     if len(color) != 1:
         if verbose:
             print(f'{len(color)} color columns were found.')
