@@ -4,13 +4,22 @@ from scipy.special import lambertw
 from scipy.optimize import curve_fit
 epsilon = 10e-10
 
-def softmax_max(xs, a=10):
+# def softmax_max(xs, a=10):
+#     """
+#     Computes softmax of an array
+#     """
+#     xs = np.array(xs)
+#     e_ax = np.exp(a * xs)
+#     return xs @ (e_ax.T / np.sum(e_ax, axis=1))
+def softmax_max(xs, a=1):
     """
     Computes softmax of an array
     """
     xs = np.array(xs)
     e_ax = np.exp(a * xs)
-    return xs @ e_ax.T / np.sum(e_ax)
+    return (xs * (e_ax.T / np.sum(e_ax, axis=1)).T).sum(axis=1)
+
+
 
 def get_quadratic_sol(a,b,c):
     """
@@ -149,6 +158,7 @@ def fit_reconstruction_err(xdata1, xdata2, ydata):
         x1,x2 = X
         # w = x1 / (x1 + x2)
         # y = w*(b*x2 + a) + (1-w)*(beta*x1 + alpha)
+        # y = softmax_max(b*x2 + a, beta*x1 + alpha)
         y = np.maximum(b*x2 + a, beta*x1 + alpha)
         return y
 
