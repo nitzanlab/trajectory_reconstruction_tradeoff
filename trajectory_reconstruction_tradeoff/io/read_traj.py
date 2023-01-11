@@ -22,13 +22,13 @@ def read_dataset(dataset, dirname):
     D = None
 
     if os.path.isfile(fname_counts):
-        X, D, meta = read_data_from_csv(fname_counts, fname_dists, fname_meta, fname_milestone)
+        X, D, meta, milestone_network = read_data_from_csv(fname_counts, fname_dists, fname_meta, fname_milestone)
     elif os.path.join(fname_anndata):
         # read from Anndata
         adata = sc.read_h5ad(os.path.join(dirname, f'{dataset}.h5ad'))
         X = adata.X if isinstance(adata.X, np.ndarray) else adata.X.toarray()
         meta = adata.obs
-    return X, D, meta
+    return X, D, meta, milestone_network
 
 
 def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
@@ -44,6 +44,8 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
     X.index = X.index.astype(str)
     D = None
     meta = None
+    milestone_network = None
+
     if os.path.isfile(fname_dists):
         D = pd.read_csv(fname_dists, index_col=0)
         D.index = D.index.astype(str)
@@ -62,7 +64,13 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
         if 'group_id' in meta.columns and 'milestone_id' not in meta.columns:
             meta['milestone_id'] = meta['group_id']
     # TODO: convert milestone network to metadata?
-    return X, D, meta
+    if os.path.isfile(fname_milestone):
+        milestone_network = pd.read_csv(fname_milestone, index_col=0)
+        # order data by milestone ordering
+    else:
+        print('No milestone ordering provided')
+    
+    return X, D, meta, milestone_network
 
 if __name__ == '__main__':
     dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'  # TODO: change to relative path

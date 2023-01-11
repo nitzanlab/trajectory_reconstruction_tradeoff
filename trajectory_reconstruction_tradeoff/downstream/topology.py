@@ -9,7 +9,7 @@ import pandas as pd
 #     traj_full = graph_to_milestone_network(Gfull)
 #     return traj_full
 
-def get_pseudo_from_adata(adata, use_rep='X_pca', idx_col='original_idx', n_neighbors=15, verbose=True):
+def get_pseudo_from_adata(adata, use_rep='X_pca', idx_col='Trajectory_idx', n_neighbors=15, verbose=True, iroot=None):
     """
     Compute pseudotime
     adata - AnnData object
@@ -29,7 +29,7 @@ def get_pseudo_from_adata(adata, use_rep='X_pca', idx_col='original_idx', n_neig
             return
         sc.tl.diffmap(adata)
     #     adata.obs['original_idx'] = np.arange(adata.shape[0])
-        adata.uns['iroot'] = np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0]
+        adata.uns['iroot'] = np.where(adata.obs_names == adata.obs[idx_col].idxmin())[0][0] if iroot is None else iroot
         sc.tl.dpt(adata)
         if (adata.obs['dpt_pseudotime'] == np.inf).sum() > 0:
             n_neighbors += 1
@@ -63,7 +63,7 @@ def get_pseudo(X, meta, pX=None, **kwargs):
     return get_pseudo_from_adata(adata, use_rep=use_rep, **kwargs)
 
 
-def get_pseudo_bucket(X, meta, n_buckets=10, idx_col='original_idx', **kwargs):
+def get_pseudo_bucket(X, meta, n_buckets=10, idx_col='Trajectory_idx', **kwargs):
     """
     Computes groups of pseudotime
     X - expression
