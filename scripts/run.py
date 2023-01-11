@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
 
     if sample == 'exp':
-        kwargs_traj['n_comp'] = 50
+        # kwargs_traj['n_comp'] = 50
         Bs = [0.0005]
         Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
         Pc = Pc[Pc < 1]
@@ -82,8 +82,8 @@ if __name__ == '__main__':
     # kwargs_traj['do_hvgs'] = True
 
     # load trajectory
-    X, D, meta = T.io.read_dataset(dataset, datadir)
-    traj = T.tr.Trajectory(X, meta=meta, **kwargs_traj)
+    X, D, meta, mn = T.io.read_dataset(dataset, datadir)
+    traj = T.tr.Trajectory(X, meta=meta, milestone_network=mn,**kwargs_traj)
     
 
     # sampling
