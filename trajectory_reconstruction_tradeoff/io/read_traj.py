@@ -20,7 +20,7 @@ def read_dataset(dataset, dirname):
 
     fname_anndata = os.path.join(dirname, '%s.h5ad' % dataset)
     D = None
-
+    milestone_network = None
     if os.path.isfile(fname_counts):
         X, D, meta, milestone_network = read_data_from_csv(fname_counts, fname_dists, fname_meta, fname_milestone)
     elif os.path.join(fname_anndata):
