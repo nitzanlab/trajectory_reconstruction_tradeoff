@@ -59,6 +59,7 @@ if __name__ == '__main__':
     if sample == 'exp':
         # kwargs_traj['n_comp'] = 50
         Bs = [0.0005]
+        #Bs = [0.000077]
         Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
         Pc = Pc[Pc < 1]
         Pt = None
