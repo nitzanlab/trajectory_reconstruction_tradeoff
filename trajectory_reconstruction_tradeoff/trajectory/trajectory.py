@@ -4,6 +4,7 @@ import skdim
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import matplotlib.pyplot as plt
 import trajectory_reconstruction_tradeoff as T
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import pdist
@@ -22,7 +23,7 @@ class Trajectory():
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, milestone_network=None, outdir=None, 
+    def __init__(self, X, D=None, meta=None, milestone_network=None, group_col='milestone_id', outdir=None, 
     do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100,
     by_radius=False, radius=None, radius_fold=None, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
@@ -56,10 +57,17 @@ class Trajectory():
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
 
         # order data by milestone net
+        # linearizing groups
+        self.group_order = []
+        self.group_col = None
+        if group_col in meta.columns:
+            self.group_col = group_col
+            self.group_order = meta[group_col].unique()
         if milestone_network is not None:
             if isinstance(milestone_network, pd.DataFrame) and (set(['from', 'to']) in set(milestone_network.columns)) and ('milestone_id' in meta.columns):    
             
                 milestone_ordering = unique_list(list(milestone_network['from'].values) + list(milestone_network['to'].values))
+                self.group_order = milestone_ordering
                 assert(meta['milestone_id'].isin(milestone_ordering).all())
                 dct = {v: i for i, v in enumerate(milestone_ordering)}
                 idx = np.argsort(meta['milestone_id'].map(dct), kind='mergesort')
@@ -366,14 +374,14 @@ class Trajectory():
 
     def evaluate(self, sX, psX, lsX, psD, sD, psP, ix, pca, pc, pt, 
                 comp_deltas=False, comp_nn_dist=True, 
-                comp_pseudo_corr=False, 
+                comp_pseudo_corr=False, pseudo_use='dpt',
                 comp_exp_corr=False, 
                 comp_vertex_length=False, 
                 comp_covariance=False, 
                 comp_covariance_latent=False, 
                 comp_pc_err=False, 
                 comp_reach=False, comp_density=False, 
-                comp_proj_err=False, verbose=False):
+                comp_proj_err=False, verbose=False, plot=False,):
         """
         Computes statistics of downsampled data
         :param sX: sampled expression
@@ -426,8 +434,18 @@ class Trajectory():
 
         if comp_pseudo_corr or comp_exp_corr:
             try:
-                pseudo = T.dw.get_pseudo(sX, smeta, pX=psX)
-                dpt_corr = np.corrcoef(smeta['dpt'], pseudo)[0, 1]
+                # pseudo = T.dw.get_pseudo(sX, smeta, pX=psX, plot=plot)
+                present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
+                source = present_groups[0]
+                sinks = present_groups[-1]
+                a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
+                pseudo = -a[source]
+                if plot:
+                    plt.scatter(psX.values[:,0], psX.values[:,1], c=pseudo)
+                
+
+                dpt_corr = np.corrcoef(smeta[pseudo_use], pseudo)[0, 1]
+                # print(dpt_corr)
                 report['dpt_corr'] = dpt_corr
             except:
                 pseudo = None
@@ -457,8 +475,8 @@ class Trajectory():
             report['cov_latent_err'] = np.linalg.norm(self.pC - psC)
         
         if comp_exp_corr and (pseudo is not None):
-            or_s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], smeta['dpt'], n_buckets=self.n_buckets)
-            s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], pseudo, n_buckets=self.n_buckets)
+            or_s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], smeta[pseudo_use], n_buckets=self.n_buckets, plot=plot)
+            s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], pseudo, n_buckets=self.n_buckets, plot=plot)
             or_exp_corr = T.dw.expression_correlation(self.buckets_mean, or_s_buckets_mean)
             exp_corr = T.dw.expression_correlation(self.buckets_mean, s_buckets_mean)
             report['exp_corr'] = exp_corr
@@ -548,7 +566,7 @@ class Trajectory():
 
 
 
-    def eval_linear_regression(self, group_col, source, sinks, use_rep='log1p'):
+    def eval_linear_regression(self, group_col, source, sinks, use_rep='log1p', X=None, meta=None):
         """
         Mean norm to subspace of source and sink cell types (Pusuluri et al. 2019)
         """
@@ -558,8 +576,9 @@ class Trajectory():
         # p - number of types
 
         # get mean expression of source and sink cell types
-        X = self.lX if use_rep == 'log1p' else self.X
-        group_X = pd.concat((self.meta[group_col], X), axis=1)
+        X = (self.lX if use_rep == 'log1p' else self.X) if X is None else X
+        meta = self.meta if meta is None else meta
+        group_X = pd.concat((meta[group_col], X), axis=1)
         group_mean = group_X.groupby(group_col).mean()
         sinks = sinks if isinstance(sinks, list) else [sinks]
         source_exp = group_mean.loc[source]
@@ -581,20 +600,20 @@ class Trajectory():
         S_perp_norm = np.linalg.norm(S_perp, axis=0)
 
         # return np.mean(S_perp_norm)
-        a = pd.DataFrame(wT, index=self.meta.index, columns=[source] + sinks)
-        S_perp_norm = pd.Series(S_perp_norm, index=self.meta.index)
+        a = pd.DataFrame(wT, index=meta.index, columns=[source] + sinks)
+        S_perp_norm = pd.Series(S_perp_norm, index=meta.index)
 
         return a, S_perp_norm
 
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
-                        comp_pseudo_corr=False, 
+                        comp_pseudo_corr=False, pseudo_use='dpt', 
                         comp_exp_corr=False, 
                         comp_vertex_length=False, 
                         comp_covariance=False, 
                         comp_covariance_latent=False, 
                         comp_reach=False, comp_density=False, 
                         comp_proj_err=False,
-                        hvgs=None, n_buckets=10, **kwargs):
+                        hvgs=None, n_buckets=5, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
         :param X: counts data
@@ -619,7 +638,14 @@ class Trajectory():
             self.V = T.ds.compute_path_vertex_length(self.P)
 
         if comp_pseudo_corr or comp_exp_corr:
-            self.meta['dpt'] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values)
+            if pseudo_use == 'dpt':
+                # self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
+                source = self.group_order[0]
+                sinks = self.group_order[-1]
+                a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
+                self.meta[pseudo_use] = -a[source]
+                if plot:
+                    plt.scatter(self.pX.values[:,0], self.pX.values[:,1], c=self.meta[pseudo_use])
 
         if comp_exp_corr:
             # select genes for reconstruction evaluation
@@ -635,7 +661,7 @@ class Trajectory():
                 if verbose:
                     print('Using %d genes' % len(self.exp_corr_hvgs))
             self.n_buckets = n_buckets
-            self.buckets_mean = T.dw.get_mean_bucket_exp(self.X[self.exp_corr_hvgs], self.meta['dpt'], n_buckets=self.n_buckets)
+            self.buckets_mean = T.dw.get_mean_bucket_exp(self.X[self.exp_corr_hvgs], self.meta[pseudo_use], n_buckets=self.n_buckets, plot=plot)
 
         if comp_covariance:
             self.C = T.ds.compute_covariance(self.X)
@@ -674,13 +700,13 @@ class Trajectory():
                     continue
                 
                 report = self.evaluate( *subsample_result, pc=pc, pt=pt, 
-                                        comp_pseudo_corr=comp_pseudo_corr, 
+                                        comp_pseudo_corr=comp_pseudo_corr, pseudo_use=pseudo_use,
                                         comp_exp_corr=comp_exp_corr, 
                                         comp_vertex_length=comp_vertex_length, 
                                         comp_covariance=comp_covariance, 
                                         comp_covariance_latent=comp_covariance_latent, 
                                         comp_reach=comp_reach, comp_density=comp_density, 
-                                        comp_proj_err=comp_proj_err, verbose=verbose, **kwargs)
+                                        comp_proj_err=comp_proj_err, verbose=verbose, plot=plot, **kwargs)
                          
                 report = {'pc': pc, 'pt': pt, 'B': B, 
                           'log pc': np.log(pc), 'log pt': np.log(pt), 
@@ -708,19 +734,20 @@ if __name__ == '__main__':
     from scipy.spatial.distance import cdist
     # X, D_true, meta = T.io.simulate(newick)
     datasets = ['beta', 'hayashi']
-    for dataset in datasets:
-        print(dataset)
-        X, _, meta, mn = T.io.read_dataset(dataset=dataset, dirname='datasets/')
-        traj = Trajectory(X, meta=meta, milestone_network=mn)
-        L = traj.compute_tradeoff(B=-1, Pc=[0.05,0.55], comp_pseudo_corr=True, repeats=2)
-        print(L)
-        source = mn.iloc[0]['from']
-        after_source = mn.iloc[0]['to']
-        sink = mn.iloc[-1]['to']
-        source_exp = traj.X[traj.meta['milestone_id'] == source].mean()
-        aftersource_exp = traj.X[traj.meta['milestone_id'] == after_source].mean()
-        sink_exp = traj.X[traj.meta['milestone_id'] == sink].mean()
-        print(np.linalg.norm(source_exp-sink_exp) / traj.ngenes)
+    dataset = 'linear_rep0'
+    # for dataset in datasets:
+        # print(dataset)
+    X, _, meta, mn = T.io.read_dataset(dataset=dataset, dirname='datasets/')
+    traj = Trajectory(X, meta=meta, milestone_network=mn)
+    L = traj.compute_tradeoff(B=0.001, Pc=[0.84], comp_pseudo_corr=True, comp_exp_corr=True, repeats=1, plot=False) #, pseudo_use='Trajectory_idx' 
+    print(L)
+    # source = mn.iloc[0]['from']
+    # after_source = mn.iloc[0]['to']
+    # sink = mn.iloc[-1]['to']
+    # source_exp = traj.X[traj.meta['milestone_id'] == source].mean()
+    # aftersource_exp = traj.X[traj.meta['milestone_id'] == after_source].mean()
+    # sink_exp = traj.X[traj.meta['milestone_id'] == sink].mean()
+    # print(np.linalg.norm(source_exp-sink_exp) / traj.ngenes)
         
         # check expression distance bw first and last timepoint
 

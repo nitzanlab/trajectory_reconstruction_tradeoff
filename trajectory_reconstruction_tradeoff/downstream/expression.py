@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import matplotlib.pyplot as plt
 # from scipy.interpolate import UnivariateSpline
 #
 # def interp(X, knots=5):
@@ -23,20 +23,25 @@ import pandas as pd
 
 
 # Mean expression given groupings
-def get_mean_bucket_exp(X, pseudo, n_buckets=10):
+def get_mean_bucket_exp(X, pseudo, n_buckets=5, plot=False):
     """
     Compute the expression profile based on bucket assignment
     X - expression
     bucket - bucket assignment
     """
-    bucket = pd.qcut(pseudo, q=n_buckets, labels=np.arange(n_buckets))
+    bucket = pd.qcut(pseudo, q=n_buckets, labels=np.arange(n_buckets), duplicates='drop')
     lX = np.log1p(X)
     tmp = pd.concat((lX, bucket), axis=1)
     # log1p?
     bucket_mean = tmp.groupby(bucket.name).mean()
-    norm_bucket_mean = bucket_mean / bucket_mean.max(0)
+    norm_bucket_mean = bucket_mean / bucket_mean.max(axis=0)
     # TODO: how to handle???
     norm_bucket_mean.fillna(0, inplace=True)
+    if plot:
+        ngenes = min(10, X.shape[1])
+        for i in range(ngenes):
+            plt.plot(bucket_mean.index, bucket_mean[bucket_mean.columns[i]])
+        plt.show()
     return norm_bucket_mean
 
 

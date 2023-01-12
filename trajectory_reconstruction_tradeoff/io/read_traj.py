@@ -28,6 +28,11 @@ def read_dataset(dataset, dirname):
         adata = sc.read_h5ad(os.path.join(dirname, f'{dataset}.h5ad'))
         X = adata.X if isinstance(adata.X, np.ndarray) else adata.X.toarray()
         meta = adata.obs
+    
+    if 'group_id' in meta.columns and 'milestone_id' not in meta.columns:
+            meta['milestone_id'] = meta['group_id']
+    if 'branch' in meta.columns and 'milestone_id' not in meta.columns:
+        meta['milestone_id'] = meta['branch']
     return X, D, meta, milestone_network
 
 
@@ -61,8 +66,7 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
         
         assert (meta.index == X.index).all()
 
-        if 'group_id' in meta.columns and 'milestone_id' not in meta.columns:
-            meta['milestone_id'] = meta['group_id']
+        
     # TODO: convert milestone network to metadata?
     if os.path.isfile(fname_milestone):
         milestone_network = pd.read_csv(fname_milestone, index_col=0)
