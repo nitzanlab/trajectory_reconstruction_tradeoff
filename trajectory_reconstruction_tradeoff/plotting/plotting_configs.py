@@ -97,6 +97,7 @@ def get_traj_fignames(datasets):
     traj_fignames = {k:k for k in datasets}
     traj_fignames['hayashi'] = 'mESC'
     traj_fignames['linear_rep0'] = 'simulated'
+    traj_fignames['scvelo'] = 'pancreas'
     return traj_fignames
 
 def get_traj_colors(datasets, default_color='black'):
