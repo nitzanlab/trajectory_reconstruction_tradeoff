@@ -434,12 +434,14 @@ class Trajectory():
 
         if comp_pseudo_corr or comp_exp_corr:
             try:
-                # pseudo = T.dw.get_pseudo(sX, smeta, pX=psX, plot=plot)
-                present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
-                source = present_groups[0]
-                sinks = present_groups[-1]
-                a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
-                pseudo = -a[source]
+                pseudo = T.dw.get_pseudo(sX, smeta, pX=psX, plot=plot)
+                
+                # present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
+                # source = present_groups[0]
+                # sinks = present_groups[-1]
+                # a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
+                # pseudo = -a[source]
+
                 if plot:
                     plt.scatter(psX.values[:,0], psX.values[:,1], c=pseudo)
                 
@@ -639,11 +641,14 @@ class Trajectory():
 
         if comp_pseudo_corr or comp_exp_corr:
             if pseudo_use == 'dpt':
-                # self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
-                source = self.group_order[0]
-                sinks = self.group_order[-1]
-                a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
-                self.meta[pseudo_use] = -a[source]
+
+                self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
+                
+                # source = self.group_order[0]
+                # sinks = self.group_order[-1]
+                # a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
+                # self.meta[pseudo_use] = -a[source]
+                
                 if plot:
                     plt.scatter(self.pX.values[:,0], self.pX.values[:,1], c=self.meta[pseudo_use])
 
@@ -739,7 +744,7 @@ if __name__ == '__main__':
         # print(dataset)
     X, _, meta, mn = T.io.read_dataset(dataset=dataset, dirname='datasets/')
     traj = Trajectory(X, meta=meta, milestone_network=mn)
-    L = traj.compute_tradeoff(B=0.001, Pc=[0.84], comp_pseudo_corr=True, comp_exp_corr=True, repeats=1, plot=False) #, pseudo_use='Trajectory_idx' 
+    L = traj.compute_tradeoff(B=0.001, Pc=[0.84], comp_pseudo_corr=True, comp_exp_corr=True, repeats=1, plot=False, pseudo_use='Trajectory_idx' )
     print(L)
     # source = mn.iloc[0]['from']
     # after_source = mn.iloc[0]['to']

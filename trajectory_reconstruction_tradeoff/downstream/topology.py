@@ -24,6 +24,9 @@ def get_pseudo_from_adata(adata, use_rep='X_pca', idx_col='Trajectory_idx', n_ne
     # idx_org = adata.obs_names
     # adata_ = sc.concat((adata[iroot], adata[~adata.obs_names.isin([adata.obs_names[iroot]])]))
     adata.uns['iroot'] = iroot
+
+    # sc.tl.dpt(adata, n_neighbors=n_neighbors, knn=False)
+    
     while True:
         try:
             sc.pp.neighbors(adata, use_rep=use_rep, n_neighbors=n_neighbors, method='gauss')
