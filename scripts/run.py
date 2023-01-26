@@ -59,11 +59,12 @@ if __name__ == '__main__':
     if sample == 'exp':
         # kwargs_traj['n_comp'] = 50
         Bs = [0.0005]
+        #Bs = [0.005]
         #Bs = [0.000077]
         Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
         Pc = Pc[Pc < 1]
         Pt = None
-        kwargs_tradeoff = {'comp_exp_corr': True, 'comp_pseudo_corr': True}
+        kwargs_tradeoff = {'comp_exp_corr': True, 'comp_pseudo_corr': True,'pseudo_use':'Trajectory_idx'}
 
     # # TEMP
     # desc = f'{desc}_original_locs'
