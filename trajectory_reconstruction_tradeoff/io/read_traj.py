@@ -61,7 +61,9 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
 
     if os.path.isfile(fname_meta):
 
-        meta = pd.read_csv(fname_meta, index_col=1) # TODO: was 1!! standardize
+        meta = pd.read_csv(fname_meta, index_col=0) # TODO: was 1!! standardize
+        if 'cell_id' in meta.columns:
+            meta.index = meta['cell_id']
         meta.index = meta.index.astype(str)
         
         assert (meta.index == X.index).all()
