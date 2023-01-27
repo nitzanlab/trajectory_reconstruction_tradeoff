@@ -148,7 +148,7 @@ def get_pc_min_pred_log(m1, m2, B):
 #     L['pred l1 fit'] = ydata_hat
 #     return L
 
-def fit_reconstruction_err(xdata1, xdata2, ydata):
+def fit_reconstruction_err(xdata1, xdata2, ydata, get_params=False):
     """
     Fit reconstruction error curves by:
     ydata = max(alpha + beta * xdata1, a + b * xdata2)
@@ -166,8 +166,11 @@ def fit_reconstruction_err(xdata1, xdata2, ydata):
     parameters, _ = curve_fit(cov_err, xdata, ydata)
 
     ydata_hat = cov_err(xdata, *parameters)
-    
-    return ydata_hat
+
+    if get_params:
+        return ydata_hat, *parameters
+    else:
+        return ydata_hat
 
 
 

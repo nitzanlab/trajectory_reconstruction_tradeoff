@@ -103,7 +103,8 @@ class Trajectory():
             self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
         self.pX, self.lX, self.pca = self.preprocess(self.X, return_pca=True)
         
-        self.dim =  self.get_dimension() 
+        self.dim = None
+        # self.dim =  self.get_dimension() 
         
         # if self.pca:
             # self.projection = self.compute_projection(self.pca)
