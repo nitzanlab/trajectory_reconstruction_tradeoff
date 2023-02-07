@@ -64,7 +64,7 @@ class Trajectory():
             self.group_col = group_col
             self.group_order = meta[group_col].unique()
         if milestone_network is not None:
-            if isinstance(milestone_network, pd.DataFrame) and (set(['from', 'to']) in set(milestone_network.columns)) and ('milestone_id' in meta.columns):    
+            if isinstance(milestone_network, pd.DataFrame) and ('from' in milestone_network.columns) and ('to' in milestone_network.columns) and ('milestone_id' in meta.columns):    
             
                 milestone_ordering = unique_list(list(milestone_network['from'].values) + list(milestone_network['to'].values))
                 self.group_order = milestone_ordering
@@ -317,6 +317,8 @@ class Trajectory():
         
         return sX, psX, lsX, psD, sD, psP, ix, pca
 
+
+
     def _downsample_params(self, B, Pc=None, Pt=None, verbose=False):
         """
         Filtering downsampling params
@@ -435,13 +437,13 @@ class Trajectory():
 
         if comp_pseudo_corr or comp_exp_corr:
             try:
-                pseudo = T.dw.get_pseudo(sX, smeta, pX=psX, plot=plot)
+                # pseudo = T.dw.get_pseudo(sX, smeta, pX=psX, plot=plot)
                 
-                # present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
-                # source = present_groups[0]
-                # sinks = present_groups[-1]
-                # a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
-                # pseudo = -a[source]
+                present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
+                source = present_groups[0]
+                sinks = present_groups[-1]
+                a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
+                pseudo = -a[source]
 
                 if plot:
                     plt.scatter(psX.values[:,0], psX.values[:,1], c=pseudo)
@@ -643,12 +645,12 @@ class Trajectory():
         if comp_pseudo_corr or comp_exp_corr:
             if pseudo_use == 'dpt':
 
-                self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
+                # self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
                 
-                # source = self.group_order[0]
-                # sinks = self.group_order[-1]
-                # a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
-                # self.meta[pseudo_use] = -a[source]
+                source = self.group_order[0]
+                sinks = self.group_order[-1]
+                a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
+                self.meta[pseudo_use] = -a[source]
                 
                 if plot:
                     plt.scatter(self.pX.values[:,0], self.pX.values[:,1], c=self.meta[pseudo_use])

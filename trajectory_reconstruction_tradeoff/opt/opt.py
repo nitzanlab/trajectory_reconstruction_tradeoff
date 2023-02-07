@@ -15,7 +15,7 @@ def softmax_max(xs, a=1):
     """
     Computes softmax of an array
     """
-    xs = np.array(xs)
+    xs = np.array(xs).T
     e_ax = np.exp(a * xs)
     return (xs * (e_ax.T / np.sum(e_ax, axis=1)).T).sum(axis=1)
 
@@ -158,7 +158,7 @@ def fit_reconstruction_err(xdata1, xdata2, ydata, get_params=False):
         x1,x2 = X
         # w = x1 / (x1 + x2)
         # y = w*(b*x2 + a) + (1-w)*(beta*x1 + alpha)
-        # y = softmax_max(b*x2 + a, beta*x1 + alpha)
+        # y = softmax_max([b*x2 + a, beta*x1 + alpha])
         y = np.maximum(b*x2 + a, beta*x1 + alpha)
         return y
 
