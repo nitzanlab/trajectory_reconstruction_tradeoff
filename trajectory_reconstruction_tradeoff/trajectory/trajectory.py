@@ -663,7 +663,7 @@ class Trajectory():
 
                 # select genes with high expression
                 hvgs_mean = self.X[hvgs].mean()
-                n_hhvgs = min(20, len(hvgs))
+                n_hhvgs = min(50, len(hvgs))
                 self.exp_corr_hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
 
                 if verbose:
