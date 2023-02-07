@@ -33,6 +33,7 @@ def parse():
     parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff', 'exp'], help='Sample choice')
     parser.add_argument('--repeats', type=int, default=50, help='An optional integer positional argument')
 
+    parser.add_argument('--B', type=float, default=0.0005, help='Budget to sample')
     
     # optional, edit sampling
     args = parser.parse_args()
@@ -51,16 +52,17 @@ if __name__ == '__main__':
     repeats = args.repeats
     desc = args.desc
     datadir = args.datadir
-
+    B = args.B
     kwargs_traj = {}
     kwargs_tradeoff = {}
 
 
     if sample == 'exp':
         # kwargs_traj['n_comp'] = 50
-        Bs = [0.0005]
+        #Bs = [0.0005]
         #Bs = [0.005]
         #Bs = [0.000077]
+        Bs = [B]
         Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
         Pc = Pc[Pc < 1]
         Pt = None
