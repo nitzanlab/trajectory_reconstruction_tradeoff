@@ -106,13 +106,13 @@ def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
 
     # Add a legend
     if color and legend:
-        ax.legend(fontsize=legendsize)
+        # ax.legend(fontsize=legendsize)
         pos = ax.get_position()
         ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
         ax.legend(handletextpad=0.01,
                   loc='lower center', 
                   bbox_to_anchor=(0.5, -0.5),
-                  ncol=2, fontsize=20, frameon=False)
+                  ncol=2, fontsize=legendsize, frameon=False)
     elif color and not legend:
         ax.get_legend().remove()
 
