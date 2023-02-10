@@ -355,9 +355,9 @@ class Trajectory():
             if verbose: print('Restricting Pc to range of available cells/PC dimensions')
             dws_params = dws_params[~cond]
 
-        cond = dws_params['pc'] > 0.95
+        cond = dws_params['pc'] > 0.90
         if np.any(cond):
-            if verbose: print('Restricting Pc so can sample')
+            if verbose: print('Restricting Pc so can subsample')
             dws_params = dws_params[~cond]
 
         cond = dws_params['pc'] < B
