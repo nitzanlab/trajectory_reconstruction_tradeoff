@@ -349,10 +349,15 @@ class Trajectory():
         if B > 1:
             ValueError('B needs to be smaller than 1')
 
-        min_cells = self.n_comp if self.do_preprocess else 1
+        min_cells = self.n_comp if self.do_preprocess else 5
         cond = dws_params['pc'] < min_cells / self.ncells
         if np.any(cond):
             if verbose: print('Restricting Pc to range of available cells/PC dimensions')
+            dws_params = dws_params[~cond]
+
+        cond = dws_params['pc'] > 0.95
+        if np.any(cond):
+            if verbose: print('Restricting Pc so can sample')
             dws_params = dws_params[~cond]
 
         cond = dws_params['pc'] < B
@@ -663,7 +668,7 @@ class Trajectory():
 
                 # select genes with high expression
                 hvgs_mean = self.X[hvgs].mean()
-                n_hhvgs = min(20, len(hvgs))
+                n_hhvgs = min(50, len(hvgs))
                 self.exp_corr_hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
 
                 if verbose:
