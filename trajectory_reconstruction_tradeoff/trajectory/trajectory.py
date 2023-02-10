@@ -277,6 +277,7 @@ class Trajectory():
         """
         n = int(self.ncells * pc)
         ix = np.random.choice(self.ncells, n, replace=False)
+
         sX = self.X.iloc[ix, :]
         
         cellnames = sX.index
@@ -355,7 +356,8 @@ class Trajectory():
             if verbose: print('Restricting Pc to range of available cells/PC dimensions')
             dws_params = dws_params[~cond]
 
-        cond = dws_params['pc'] > 0.90
+        max_cells = self.ncells - 5
+        cond = dws_params['pc'] > max_cells / self.ncells
         if np.any(cond):
             if verbose: print('Restricting Pc so can subsample')
             dws_params = dws_params[~cond]
