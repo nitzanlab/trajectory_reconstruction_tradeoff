@@ -30,7 +30,7 @@ def parse():
     parser.add_argument('--datadir', type=str, default=datadir, help='Data directory')
     parser.add_argument('--outdir', type=str, default=outdir, help='Output directory')
     parser.add_argument('--desc', type=str, default='', help='Short description of run appended to filename')
-    parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff', 'exp'], help='Sample choice')
+    parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff', 'exp', 'tradeoffreads'], help='Sample choice')
     parser.add_argument('--repeats', type=int, default=50, help='An optional integer positional argument')
 
     parser.add_argument('--B', type=float, default=0.0005, help='Budget to sample')
@@ -116,6 +116,13 @@ if __name__ == '__main__':
         Pc = Pvar = np.arange(0.01, 0.9, 0.01)
         # Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
         Pt = None
+
+    if sample == 'tradeoffreads':
+        Bs = 10 ** np.linspace(-5, -1, 10)
+        Pt = Pvar = np.arange(0.01, 0.9, 0.01)
+        # Pc = Pvar = np.arange(0.03, 0.6, 0.01) #TEMP
+        Pc = None
+
 
 
     L_per_traj = []
