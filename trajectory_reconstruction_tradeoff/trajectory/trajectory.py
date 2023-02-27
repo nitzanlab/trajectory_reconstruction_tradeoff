@@ -288,7 +288,7 @@ class Trajectory():
         sX = pd.DataFrame(sX, index=cellnames, columns=genenames)
         return sX, ix
 
-    def subsample(self, pc, pt, ix=None, verbose=False):
+    def subsample(self, pc, pt, sX=None, ix=None, verbose=False):
         """
         Subsample cells and reads
         :param X: expression counts
@@ -307,7 +307,10 @@ class Trajectory():
         if ix is None:
             sX, ix = self.subsample_counts(pc, pt)
         else:
-            sX = self.X.iloc[ix, :]
+            if sX is None:
+                sX = self.X.iloc[ix, :]
+            
+
         sD = self.D[ix][:, ix]  # subsampled ground truth pairwise distances
         # sD_max = np.max(sD) #TODO: BIG CHANGE
         # sD = sD / sD_max

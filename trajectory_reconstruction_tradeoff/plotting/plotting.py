@@ -235,7 +235,7 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
                   color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, xcol_twin=None, twin_values=None,
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
                   labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
-                  add_fit=False, model_type='huber', **kwargs):
+                  add_fit=False, add_R=False, model_type='huber', **kwargs):
     """
     Plot reconstruction error as a function of sampling probability (alternatively, plot results of any two parameters)
     :param L: dataframe with sampling parameters and errors
@@ -335,7 +335,8 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
         r = 2 # R^2 round factor
         R = np.round(model_.score(x.reshape((-1,1)),y), r)
         kwargs_text = {'x': 0.3, 'y': 0.9, 'ha':'center', 'va':'center', 'fontsize':30}
-        ax.text(s=fr'$R^2$={R}', transform=ax.transAxes, **kwargs_text)
+        if add_R:
+            ax.text(s=fr'$R^2$={R}', transform=ax.transAxes, **kwargs_text)
 
         return model_
 
@@ -407,7 +408,7 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
                 label=repeat, ax=ax, plot_std=plot_std, pc_opt=pc_opt, title=title, **kwargs)
         istructure += 1
 
-    pcs = L_tradeoff['pc'].unique()
+    pcs = L_tradeoff[xcol].unique()
     text = f'B:{Bs}'
     if plot_pcs:
         ax.scatter(pcs, np.zeros_like(pcs) + L_tradeoff['l1'].min())
