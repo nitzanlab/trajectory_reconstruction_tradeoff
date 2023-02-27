@@ -276,7 +276,7 @@ class Trajectory():
         
         return hvgs, ihvgs
 
-    def subsample_counts(self, pc, pt):
+    def subsample_counts(self, pc, pt, verbose=False):
         """
         Subsample cells and reads
         :param X: expression counts
@@ -287,8 +287,14 @@ class Trajectory():
             index of subsampled cells
         """
         n = int(self.ncells * pc)
-        ix = list(np.random.choice(self.cellnames, n, replace=False))
-
+        if n < self.ncells:
+            ix = list(np.random.choice(self.cellnames, n, replace=False))
+        elif n == self.ncells:
+            ix = self.cellnames
+        elif n > self.ncells:
+            raise ValueError('n > self.ncells')
+            
+    
         sX = self.X.loc[ix, :]
         
         cellnames = sX.index
@@ -371,7 +377,7 @@ class Trajectory():
             dws_params = dws_params[~cond]
 
         max_cells = self.ncells - 5
-        cond = dws_params['pc'] > max_cells / self.ncells
+        cond = dws_params['pc'] > 1 # max_cells / self.ncells
         if np.any(cond):
             if verbose: print('Restricting Pc so can subsample')
             dws_params = dws_params[~cond]
@@ -386,12 +392,12 @@ class Trajectory():
             if verbose: print('Restricting Pt to 1')
             dws_params = dws_params[~cond]
 
-        cond = dws_params['pt'] < epsilon
-        if np.any(cond):
-            if verbose: print('Pt may be too low')
+        # cond = dws_params['pt'] < epsilon
+        # if np.any(cond):
+        #     if verbose: print('Pt may be too low')
 
-        min_reads = 20
-        cond = dws_params['pt'] < min_reads / self.X.sum(1).mean()
+        min_reads = 10
+        cond = dws_params['pt'] < (min_reads / self.X.sum(1).mean())
         if np.any(cond):
             if verbose: print(f'Restricting Pt to minimum avg of {min_reads} reads per cell')
             dws_params = dws_params[~cond]
