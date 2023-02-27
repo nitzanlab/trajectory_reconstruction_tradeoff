@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import spearmanr
 
 
-def compare_distances(D0, D):
+def compare_distances(D0, D, verbose=False):
     """
     Compute error(deviation) between distances
     :param D0: true distances
@@ -21,6 +21,16 @@ def compare_distances(D0, D):
         mean squared error of log(1+x)
         mean correlation of distances
     """
+    if isinstance(D0, pd.DataFrame) and isinstance(D, pd.DataFrame):
+        if (D0.index != D.index).any():
+            overlap = D0.index.intersection(D.index)
+            if verbose:
+                 print(f'Computing distances over {len(overlap)} corresponding cells')
+            D0 = D0.loc[overlap, overlap]
+            D = D.loc[overlap, overlap]
+        D0 = D0.values
+        D = D.values
+
     eps = 10e-5
 
     

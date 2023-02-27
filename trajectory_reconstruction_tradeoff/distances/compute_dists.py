@@ -38,38 +38,46 @@ def get_pairwise_distances(pX, return_predecessors=False, return_adjacency=False
     """
     n = pX.shape[0]
     D = np.inf #np.full((n,n), np.inf)
+    index = pX.index if isinstance(pX, pd.DataFrame) else np.arange(n)
     pX = pX.values if isinstance(pX, pd.DataFrame) else pX
     
-    if by_radius:
-        if radius is None:
-            radius = radius_fold * (np.log(n)/n)**(1/(2*dim))
-        W = squareform(pdist(pX))
-        A = np.zeros((n,n))
-        A[W < radius] = W[W < radius]
-        A = csr_matrix(A)
-        DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
-        D = DP[0] if return_predecessors else DP
-        if verbose:
-            print(f'Running with radius {radius}')
-            if np.sum(D) == np.inf:
-                print('Graph is disconnected')
+    # if by_radius:
+    #     if radius is None:
+    #         radius = radius_fold * (np.log(n)/n)**(1/(2*dim))
+    #     W = squareform(pdist(pX))
+    #     A = np.zeros((n,n))
+    #     A[W < radius] = W[W < radius]
+    #     A = csr_matrix(A)
+    #     DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
+    #     D = DP[0] if return_predecessors else DP
+    #     if verbose:
+    #         print(f'Running with radius {radius}')
+    #         if np.sum(D) == np.inf:
+    #             print('Graph is disconnected')
             
-    else:   
-        neighbors = 2
-        while (np.sum(D) == np.inf):
-            neighbors = neighbors + 1
-            A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=True)
-            DP = dijkstra(csgraph=A, directed=False, return_predecessors=return_predecessors)
-            D = DP[0] if return_predecessors else DP
-        if verbose:
-            print(f'Running with {neighbors} neighbors')
-    if verbose: 
-        print(f'Average number of neighbors: {(A > 0).sum(1).mean()}')
+    # else:   
+    neighbors = 2
+    while (np.sum(D) == np.inf):
+        neighbors = neighbors + 1
+        A = kneighbors_graph(pX, neighbors, mode='distance', metric='euclidean', include_self=True)
+        D = dijkstra(csgraph=A, directed=False, return_predecessors=False)
+        # D = DP[0] if return_predecessors else DP
+    if verbose:
+        print(f'Running with {neighbors} neighbors')
+    # if verbose: 
+    #     print(f'Average number of neighbors: {(A > 0).sum(1).mean()}')
     # dmax = np.max(D) # dmax = np.max(D) # TODO: BIG CHANGE
     # D = D / dmax
+    D = pd.DataFrame(D, index=index, columns=index)
+    res = [D]
+    if return_predecessors:
+        P = dijkstra(csgraph=A, directed=False, return_predecessors=True)[1]
+        P = pd.DataFrame(P, index=index, columns=index)
+        res.append(P)
     if return_adjacency:
-        return DP, A        
-    return DP #, TODO: temp neighbors dmax
+        A = pd.DataFrame(A.todense(), index=index, columns=index)
+        res.append(A)
+    return res #, TODO: temp neighbors dmax
 
 
 def get_path(src, des, P): # TODO: is this a subfunction of below?
@@ -247,6 +255,7 @@ def compute_density(D):
     :return: min_j d^M_{ij} \leq a, \forall i\in[n_c]
     """
     # should we compute this on the normalized distances
+    D = D.values if isinstance(D, pd.DataFrame) else D
     n = D.shape[0]
     D_max = D.max()
     a = np.max((D + D_max * np.eye(n)).min(axis=1))
