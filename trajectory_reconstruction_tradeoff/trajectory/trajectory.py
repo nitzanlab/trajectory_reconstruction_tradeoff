@@ -56,6 +56,12 @@ class Trajectory():
             cellnames = ['c%d' % i for i in range(self.ncells)] if meta is None else meta.index
             X = pd.DataFrame(X, columns=genenames, index=cellnames)
 
+        if D is not None:
+            assert(D.shape[0] == D.shape[1] == self.ncells)
+            if not isinstance(D, pd.DataFrame):
+                D = pd.DataFrame(D, index=cellnames, columns=cellnames)
+
+
         # order data by milestone net
         # linearizing groups
         self.group_order = []
@@ -73,8 +79,13 @@ class Trajectory():
                 idx = np.argsort(meta['milestone_id'].map(dct), kind='mergesort')
                 meta = meta.iloc[idx]
                 X = X.iloc[idx]
+                cellnames = [cellnames[i] for i in idx]
                 if D is not None:
-                    D = D[idx, :][:, idx]
+                    # D = D[idx, :][:, idx]
+                    D = D.iloc[idx][idx]
+        
+        self.cellnames = cellnames
+        self.genenames = genenames
 
         # save configs
         self.X = X
@@ -113,10 +124,10 @@ class Trajectory():
         self.P = None 
 
         if D is None:
-            D,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
+            D, P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True, # self.pX.values
             by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim)
             self.P = P # predecessors
-        # D = D / np.max(D) # TODO: removed this late! 
+        # D = D / D.max().max() # TODO: removed this late! 
 
         self.V = None # heavy to compute so only if necessary
         self.D = D
@@ -276,9 +287,9 @@ class Trajectory():
             index of subsampled cells
         """
         n = int(self.ncells * pc)
-        ix = np.random.choice(self.ncells, n, replace=False)
+        ix = list(np.random.choice(self.cellnames, n, replace=False))
 
-        sX = self.X.iloc[ix, :]
+        sX = self.X.loc[ix, :]
         
         cellnames = sX.index
         genenames = sX.columns
@@ -308,15 +319,15 @@ class Trajectory():
             sX, ix = self.subsample_counts(pc, pt)
         else:
             if sX is None:
-                sX = self.X.iloc[ix, :]
+                sX = self.X.loc[ix, :]
             
 
-        sD = self.D[ix][:, ix]  # subsampled ground truth pairwise distances
-        # sD_max = np.max(sD) #TODO: BIG CHANGE
+        sD = self.D.loc[ix][ix]  # subsampled ground truth pairwise distances
+        # sD_max = sD.max().max() #TODO: BIG CHANGE
         # sD = sD / sD_max
 
         psX, lsX, pca = self.preprocess(sX, return_pca=True)
-        psD, psP = T.ds.get_pairwise_distances(psX.values, return_predecessors=True,
+        psD, psP = T.ds.get_pairwise_distances(psX, return_predecessors=True,
                                                by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim, verbose=verbose) #TODO: BIG CHANGE , psD_ma, radius=self.radiusx
         
         return sX, psX, lsX, psD, sD, psP, ix, pca
@@ -356,7 +367,7 @@ class Trajectory():
         min_cells = self.n_comp if self.do_preprocess else 5
         cond = dws_params['pc'] < min_cells / self.ncells
         if np.any(cond):
-            if verbose: print('Restricting Pc to range of available cells/PC dimensions')
+            if verbose: print(f'Restricting Pc to minimum number of {min_cells} cells')
             dws_params = dws_params[~cond]
 
         max_cells = self.ncells - 5
@@ -378,6 +389,12 @@ class Trajectory():
         cond = dws_params['pt'] < epsilon
         if np.any(cond):
             if verbose: print('Pt may be too low')
+
+        min_reads = 20
+        cond = dws_params['pt'] < min_reads / self.X.sum(1).mean()
+        if np.any(cond):
+            if verbose: print(f'Restricting Pt to minimum avg of {min_reads} reads per cell')
+            dws_params = dws_params[~cond]
 
         if dws_params.shape[0] == 0:
             ValueError('All params were filtered out')
@@ -415,10 +432,10 @@ class Trajectory():
         nc = sX.shape[0]
         nr = sX.sum(1).mean()
         
-        smeta = self.meta.iloc[ix].copy()
+        smeta = self.meta.loc[ix].copy()
 
-        dmax_psD = np.max(psD); npsD = psD / dmax_psD
-        dmax_sD = np.max(sD); nsD = sD / dmax_sD
+        dmax_psD = psD.max().max(); npsD = psD / dmax_psD
+        dmax_sD = sD.max().max(); nsD = sD / dmax_sD
 
         # compute error
         l1, l2, ldist, fcontrac, fexpand, lsp = T.ds.compare_distances(nsD, npsD)
@@ -435,15 +452,15 @@ class Trajectory():
             report['Delta'] = pdist(psX).max()
 
         if comp_nn_dist:
-            idxmin = (sD + sD.max() * np.eye(nc)).argmin(0) # get index of nearest neighbors
-            report['nn_dist_sD'] = sD[np.arange(nc), idxmin].mean()
-            report['nn_dist_nsD'] = nsD[np.arange(nc), idxmin].mean()
+            
+            report['nn_dist_sD'] = (sD + sD.max().max() * np.eye(nc)).min(0).mean()
+            report['nn_dist_nsD'] = (nsD + nsD.max().max() * np.eye(nc)).min(0).mean()
 
-            report['nn_diff_n'] = np.abs((nsD - npsD))[np.arange(nc), idxmin].mean()
+            # report['nn_diff_n'] = np.abs((nsD - npsD))[np.arange(nc), idxmin].mean()
 
-            idxmin = (psD + psD.max() * np.eye(nc)).argmin(0)
-            report['nn_dist_psD'] = psD[np.arange(nc), idxmin].mean()
-            report['nn_dist_npsD'] = npsD[np.arange(nc), idxmin].mean()
+            # idxmin = (psD + psD.max().max() * np.eye(nc)).argmin(0)
+            report['nn_dist_psD'] = (psD + psD.max().max() * np.eye(nc)).min(0).mean()
+            report['nn_dist_npsD'] = (npsD + npsD.max().max() * np.eye(nc)).min(0).mean()
 
         if comp_pseudo_corr or comp_exp_corr:
             try:
@@ -647,7 +664,7 @@ class Trajectory():
         if comp_vertex_length and self.V is None:
             if self.P is None:
                 print('Distance matrix provided. Need to edit predecessor computation according to D provided.')
-                _,P = T.ds.get_pairwise_distances(self.pX.values, return_predecessors=True, 
+                _, P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True, 
                 by_radius=self.by_radius, radius=self.radius, radius_fold=self.radius_fold, dim=self.dim)
 
             self.V = T.ds.compute_path_vertex_length(self.P)

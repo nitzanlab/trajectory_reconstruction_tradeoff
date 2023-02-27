@@ -82,7 +82,7 @@ for (pc, pt) in zip(Pc, Pt):
         
         # subset cells from psD
         ix_cells = np.arange(len(cells))
-        psD = psD[ix_cells][:, ix_cells]
+        psD = psD.iloc[ix_cells][ix_cells]
 
         # report = straj.evaluate(*subsample_result, pc=pc, pt=pt)
         nc = sX.shape[0]
