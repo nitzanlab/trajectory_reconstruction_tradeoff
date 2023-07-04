@@ -80,6 +80,23 @@ def get_pc_min_pred_log(m1, m2, B):
 
     return xhat
 
+def get_pc_min_pred_log_log(m1, m2, B):
+    """
+    Given two linear fits, m1 and m2, describing functions f1(B/x) and f2(x) respectively, finds for which x, f1(B/x) = f2(x)
+    :param m1: read downsample error as a function of 1/sqrt(pt)
+    :param m2: cell downsample error as a function of 1/sqrt(pc)
+    :param B: subsampling budget
+    computes the optimal number of cells to assay
+    """
+    a = m1.intercept_.take(0)
+    b = m1.coef_.take(0)
+    alpha = m2.intercept_.take(0)
+    beta = m2.coef_.take(0)
+
+    xhat = np.exp((b*np.log(B) + a - alpha) / (beta + b))
+
+    return xhat
+
 
 # def fit_reconstruction_err(L):
 #     """

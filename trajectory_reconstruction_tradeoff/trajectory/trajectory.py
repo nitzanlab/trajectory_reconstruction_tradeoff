@@ -382,6 +382,11 @@ class Trajectory():
             if verbose: print('Restricting Pc so can subsample')
             dws_params = dws_params[~cond]
 
+        cond = dws_params['pc'] < 0
+        if np.any(cond):
+            if verbose: print('Restricting Pc to non-negative')
+            dws_params = dws_params[~cond]
+
         cond = dws_params['pc'] < B
         if np.any(cond):
             if verbose: print('Restricting Pc to budget limit')
