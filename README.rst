@@ -18,14 +18,14 @@ show improvement in inferring trajectory’s structure and temporal gene express
 
 
 
-Reference
----------
-Noa Moriel, Edvin Memmet, and Mor Nitzan (2022), Optimal sequencing budget allocation for trajectory reconstruction,
-`bioRxiv <bioarxiv link>`_.
+.. Reference
+.. ---------
+.. Noa Moriel, Edvin Memmet, and Mor Nitzan (2022), Optimal sequencing budget allocation for trajectory reconstruction,
+.. `bioRxiv <bioarxiv link>`_.
 
 Support
 -------
 Feel free to submit an `issue <https://github.com/NitzanLab/trajectory_reconstruction_tradeoff/issues/new/choose>`_
-or send us an `email <mailto:email>`_.
+or send us an `email <mailto:noa.moriel@mail.huji.ac.il>`_.
 
 

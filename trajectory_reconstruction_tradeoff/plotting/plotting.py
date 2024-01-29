@@ -20,6 +20,7 @@ from sklearn.decomposition import PCA
 from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
 from .zero_linear_model import ZeroLinearModel
+from .saturation_model import SaturationModel
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -32,6 +33,7 @@ legendsize = 28
 
 models = {'linear': LinearRegression,
           'huber': HuberRegressor,
+          'saturation': SaturationModel,
           # 'ransac': RANSACRegressor,
           'zerolinear': ZeroLinearModel
 }
@@ -235,7 +237,7 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
                   color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, xcol_twin=None, twin_values=None,
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
                   labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
-                  add_fit=False, add_R=False, model_type='huber', **kwargs):
+                  add_fit=False, add_R=False, model_type='saturation', thr_saturation=0.01, **kwargs):
     """
     Plot reconstruction error as a function of sampling probability (alternatively, plot results of any two parameters)
     :param L: dataframe with sampling parameters and errors
@@ -325,15 +327,23 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
     # add linear fit
     if add_fit:
         model_ = models[model_type]()
+        # least_err = L.loc[L[xcol].idxmax()][ycol]
+        # actual_err = least_err + thr_saturation
+        # max_x = x[y > actual_err].max()
+        # sL = L[L[xcol] <= max_x]
         model_.fit(L[[xcol]], L[ycol])
         if verbose:
-            print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
-        x_new = np.linspace(L[xcol].min(), L[xcol].max(), 100)
+            if model_.x0_ is None:
+                print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
+            else:
+                print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}, saturation: {model_.x0_}')
+        x_new = np.linspace(L[xcol].min(), L[xcol].max(), 10)
         ax.plot(x_new, model_.predict(x_new.reshape(-1,1)), color='black', linewidth=4, linestyle='--')
 
         # add score
         r = 2 # R^2 round factor
-        R = np.round(model_.score(x.reshape((-1,1)),y), r)
+        R = np.round(model_.score(L[xcol].values.reshape((-1, 1)), L[ycol].values.reshape((-1, 1))), r) # assuming a single group
+        # R = np.round(model_.score(x.reshape((-1,1)),y), r)
         kwargs_text = {'x': 0.3, 'y': 0.9, 'ha':'center', 'va':'center', 'fontsize':30}
         if add_R:
             ax.text(s=fr'$R^2$={R}', transform=ax.transAxes, **kwargs_text)

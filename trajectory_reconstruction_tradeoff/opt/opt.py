@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.special import lambertw
 from scipy.optimize import curve_fit
+from ..plotting.saturation_model import SaturationModel
 epsilon = 10e-10
 
 # def softmax_max(xs, a=10):
@@ -76,9 +77,14 @@ def get_pc_min_pred_log(m1, m2, B):
     alpha = m2.intercept_.take(0)
     beta = m2.coef_.take(0)
 
-    xhat = np.exp((b*np.log(B) + a - alpha) / (beta + b))
-
-    return xhat
+    pc_hat = np.exp((b*np.log(B) + a - alpha) / (beta + b))
+    pc_hat = np.array(pc_hat)
+    # print(pc_hat)
+    if isinstance(m1, SaturationModel):
+        pt_hat = B / pc_hat
+        idx_sat = np.log(pt_hat) > m1.x0_
+        pc_hat[idx_sat] = B[idx_sat] / np.exp(m1.x0_) #np.exp((m1.y0_ - alpha)/beta)
+    return pc_hat
 
 def get_pc_min_pred_log_log(m1, m2, B):
     """
