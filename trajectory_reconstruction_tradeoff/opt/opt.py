@@ -5,21 +5,14 @@ from scipy.optimize import curve_fit
 from ..plotting.saturation_model import SaturationModel
 epsilon = 10e-10
 
-# def softmax_max(xs, a=10):
-#     """
-#     Computes softmax of an array
-#     """
-#     xs = np.array(xs)
-#     e_ax = np.exp(a * xs)
-#     return xs @ (e_ax.T / np.sum(e_ax, axis=1))
+
 def softmax_max(xs, a=1):
     """
     Computes softmax of an array
     """
-    xs = np.array(xs).T
+    xs = np.array(xs)
     e_ax = np.exp(a * xs)
     return (xs * (e_ax.T / np.sum(e_ax, axis=1)).T).sum(axis=1)
-
 
 
 def get_quadratic_sol(a,b,c):
@@ -257,6 +250,52 @@ def infer_optimal_nc(B, B1, nc1, B2, nc2, traj_type='simple'):
         nr1 = infer_complex_nr(nc1, nc2, B1, B2)
         nc = nc1 * lambertw(B/B1 * nr1 * np.log(nr1)) / np.log(nr1)
         return nc
+
+def continuously_in_range(df, xcol, ycol, xval, yval, yrange, below=True):
+    """
+    Checks if a point is within a range of another point
+    """
+    df_bel = df.loc[df[xcol] < xval] if below else df.loc[df[xcol] > xval]
+    df_bel['dist to opt'] = np.abs(df_bel[xcol] - xval)
+    df_bel.sort_values(by='dist to opt', inplace=True)
+    df_bel['dist to opt order'] = np.arange(len(df_bel))
+    df_bel.loc[df_bel[ycol]<yval+yrange]
+    xrange = xval
+    for i, s in df_bel.iterrows():
+        if s[ycol] < yval+yrange:
+            xrange = s[xcol]
+        else:
+            break
+    return np.abs(xrange - xval)
+
+
+def compute_emp_min(L_tradeoff, err_fit, err_range=0.01, groupby='pc'):
+    """
+    Computes the empirical pc the minimizes the reconstruction error
+    """
+    L_by_B = L_tradeoff.groupby(L_tradeoff['B'].apply(lambda x: round(x, 6)))#.mean()
+    
+    emp_min = []
+    for B, sL_by_B in L_by_B:
+        sL_by_B_pc = sL_by_B.groupby(groupby)[err_fit].mean().reset_index()
+        idxmin = sL_by_B_pc[err_fit].idxmin()
+        ssL_by_B_pc = sL_by_B_pc.loc[idxmin]
+        pc = ssL_by_B_pc[groupby]
+        is_max = pc == sL_by_B_pc[groupby].max()
+        err = ssL_by_B_pc[err_fit]
+        pc_range_bel = continuously_in_range(sL_by_B_pc, xcol=groupby, ycol=err_fit, xval=pc, yval=err, yrange=err_range, below=True)
+        pc_range_abv = continuously_in_range(sL_by_B_pc, xcol=groupby, ycol=err_fit, xval=pc, yval=err, yrange=err_range, below=False)
+        emp_min.append({'B':B, groupby:pc, err_fit:err, 
+                        groupby + '_range_bel': pc_range_bel, 
+                        groupby + '_range_abv': pc_range_abv, 
+                        'is_max': is_max})
+        
+    emp_min = pd.DataFrame(emp_min)
+
+    return emp_min
+
+
+
 
 if __name__ == '__main__':
     B1 = 0.00002

@@ -1,0 +1,7 @@
+"","from","to","length","directed"
+"1","MEF","d2_intermediate",1,TRUE
+"2","d2_intermediate","d2_induced",1,TRUE
+"3","d2_induced","d5_intermediate",1,TRUE
+"4","d5_intermediate","d5_earlyiN",1,TRUE
+"5","d5_earlyiN","Neuron",1,TRUE
+"6","d5_earlyiN","Myocyte",1,TRUE

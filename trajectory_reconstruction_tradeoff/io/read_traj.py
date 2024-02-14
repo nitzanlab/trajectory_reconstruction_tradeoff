@@ -3,7 +3,21 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 
-def read_dataset(dataset, dirname):
+
+shorten_dicts = {
+     'hepatoblast': {'hepatoblast/hepatocyte': 'h', 'cholangiocyte': 'c',},
+     'marrow': {'(Bone_Marrow_Mesenchyme)': ''},
+     'thymus': {'(Thymus)': '', 'T cell_': '', 'T cell': ''},
+     'muscle': {'muscle ': ''},
+     'embryos': {'embryonic ': ''},
+     'alpha': {'α-cell ': ''},
+     'beta': {'β-cell ': ''},
+     'astrocyte': {'age:': '', 'Day': 'day'},
+     'rib': {'Cartilage ': '', ' high(Neonatal-Rib)':'', 'cell_': '', '_':''},
+     'mesoderm': {'H7_derived_':'', 'H7_dreived':''},
+     }
+
+def read_dataset(dataset, dirname, shorten_dict=None):
     """
     Reads dataset
     :param dataset:
@@ -33,6 +47,19 @@ def read_dataset(dataset, dirname):
             meta['milestone_id'] = meta['group_id']
     if 'branch' in meta.columns and 'milestone_id' not in meta.columns:
         meta['milestone_id'] = meta['branch']
+
+    if shorten_dict is not None:
+        milestones = meta['milestone_id'].unique()
+        milestone_shorten_dict = {}
+        for s in milestones:
+            milestone_shorten_dict[s] = s
+            for k,v in shorten_dict.items():
+                if k in milestone_shorten_dict[s]:
+                    milestone_shorten_dict[s] = milestone_shorten_dict[s].replace(k,v)
+        meta['milestone_id'] = meta['milestone_id'].map(milestone_shorten_dict)
+        milestone_network['from'] = milestone_network['from'].map(milestone_shorten_dict)
+        milestone_network['to'] = milestone_network['to'].map(milestone_shorten_dict)
+
     return X, D, meta, milestone_network
 
 

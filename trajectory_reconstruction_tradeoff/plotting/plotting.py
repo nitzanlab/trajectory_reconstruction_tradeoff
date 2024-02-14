@@ -21,6 +21,7 @@ from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
 from .zero_linear_model import ZeroLinearModel
 from .saturation_model import SaturationModel
+from mycolorpy import colorlist as mcp
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -233,11 +234,11 @@ def plot_project_spring_layout(pX, n_comp=2, **kwargs):
 
 
 
-def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
-                  color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, xcol_twin=None, twin_values=None,
+def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel=None, ylabel=None, 
+                  color_mean='slategray', color_std='slategray', color_min=None, plot_std=1, xcol_twin=None, twin_values=None,
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
                   labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
-                  add_fit=False, add_R=False, model_type='saturation', thr_saturation=0.01, **kwargs):
+                  add_fit=False, add_R=False, model_type='huber', **kwargs):
     """
     Plot reconstruction error as a function of sampling probability (alternatively, plot results of any two parameters)
     :param L: dataframe with sampling parameters and errors
@@ -273,6 +274,9 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
         v = (i + 1)
         ax.fill_between(x, np.array(y) + v * np.array(s_y), y, color=color_std, alpha=0.3/v)
         ax.fill_between(x, np.array(y) - v * np.array(s_y), y, color=color_std, alpha=0.3/v)
+
+    xlabel = xcol if xlabel is None else xlabel
+    ylabel = ycol if ylabel is None else ylabel
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -351,7 +355,7 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
         return model_
 
 
-def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
+def plot_tradeoff_experiments(L_tradeoff, desc='', plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
                             structures=[], color_groupby='trajectory type', colors={}, color='black', axs=None, title=None, **kwargs):
     """
     Plot tradeoff experiments
@@ -404,18 +408,11 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
                     ax = axs[istructure, irepeat]
             else:
                 ax = axs
-            # if nrepeats == 1:
-            #     if nstructures == 1:
-            #         ax = axs
-            #     else:
-            #         ax = axs[istructure]
-            # else:
-            #     ax = axs[irepeat, istructure]
             
             for _,(B,ssL) in enumerate(sL.groupby('B')): # iterate over budgets
                 pc_opt = find_min_nc(ssL, xcol=xcol, ycol=ycol) if plot_pc_opt else None
                 plot_tradeoff(ssL, xcol=xcol, ycol=ycol, color_mean=color, color_std=color, 
-                label=repeat, ax=ax, plot_std=plot_std, pc_opt=pc_opt, title=title, **kwargs)
+                label=repeat, ax=ax, pc_opt=pc_opt, title=title, **kwargs)
         istructure += 1
 
     pcs = L_tradeoff[xcol].unique()
@@ -582,3 +579,13 @@ def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
 
     return to_paper(alt.layer(*pls))
     # return alt.layer(*pls)
+
+def get_colors_by_budget(Bs, cmap="PRGn"):
+    """
+    A colormap for budget values
+    """
+    nBs = len(Bs)
+    colors_for_budget = mcp.gen_color(cmap=cmap, n=nBs+5)
+    colors_for_budget = colors_for_budget[:int(np.ceil(nBs/2))] + colors_for_budget[-int(np.floor(nBs/2)):]
+    colors_by_budget = {B: colors_for_budget[i] for i, B in enumerate(Bs)}
+    return colors_by_budget

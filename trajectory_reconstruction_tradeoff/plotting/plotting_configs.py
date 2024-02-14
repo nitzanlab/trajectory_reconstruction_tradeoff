@@ -59,21 +59,24 @@ def get_color_col(meta=None, color_col=None, verbose=False):
         return None
     return color
     
+def generate_palette(traj, color_col=None):
+    color = get_color_col(traj.meta, color_col=color_col)
+    if color is None:
+        palette = None
+    else:
+        unique = traj.meta[color].unique()
+        palette = dict(zip(unique, sns.color_palette(n_colors=len(unique))))
+        palette = palette
+    return palette
 
-def generate_palettes(trajs, color_col=None):
+def generate_palettes(trajs, **kwargs):
     """
     Given a dictionary of trajectories, returns a dictionary of color palatte for each
     """
     # generate palettes
     palettes = {}
     for traj_desc, traj in trajs.items():
-        color = get_color_col(traj.meta, color_col=color_col)
-        if color is None:
-            palettes[traj_desc] = None
-        else:
-            unique = traj.meta[color].unique()
-            palette = dict(zip(unique, sns.color_palette(n_colors=len(unique))))
-            palettes[traj_desc] = palette
+        palettes[traj_desc] = generate_palette(traj, **kwargs)
 
     return palettes
 
