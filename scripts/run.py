@@ -1,7 +1,5 @@
 import os
-from pip import main
 import sys; sys.path.insert(0, '../')
-import glob
 import argparse
 import pandas as pd
 import numpy as np
@@ -9,9 +7,6 @@ import matplotlib.pyplot as plt
 
 import trajectory_reconstruction_tradeoff as T
 import random
-import scanpy as sc
-import altair as alt
-from altair_saver import save
 
 random.seed(20)
 
@@ -31,7 +26,7 @@ def parse():
     parser.add_argument('--outdir', type=str, default=outdir, help='Output directory')
     parser.add_argument('--desc', type=str, default='', help='Short description of run appended to filename')
     parser.add_argument('--sample', type=str, choices=['cells', 'reads', 'tradeoff', 'exp'], help='Sample choice')
-    parser.add_argument('--repeats', type=int, default=50, help='An optional integer positional argument')
+    parser.add_argument('--repeats', type=int, default=10, help='An optional integer positional argument')
 
     parser.add_argument('--B', type=float, default=0.0005, help='Budget to sample')
     
@@ -73,7 +68,7 @@ if __name__ == '__main__':
 
     if sample == 'reads':
         Bs = [-1]
-        Pt = Pvar = 10 ** np.arange(-6, -0.5, 0.25)
+        Pt = Pvar = 10 ** np.arange(-5, -0.1, 0.25)
         Pc = Pconst = np.ones_like(Pvar)
 
     if sample == 'tradeoff':

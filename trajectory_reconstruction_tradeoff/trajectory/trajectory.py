@@ -166,7 +166,7 @@ class Trajectory():
                 pX = lX.loc[:, self.hvgs]
             else:
                 # pca computation
-                pca = PCA(n_components=self.n_comp, svd_solver='full')
+                pca = PCA(n_components=self.n_comp)
                 pX = pca.fit_transform(lX)
                 pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
                 pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
@@ -191,6 +191,7 @@ class Trajectory():
         hvgs = list(adata.var.iloc[ihvgs]['genename'])
         
         return hvgs, ihvgs
+
 
     def subsample_counts(self, pc, pt):
         """
@@ -219,6 +220,7 @@ class Trajectory():
             sX = np.random.binomial(sX, pt)
         sX = pd.DataFrame(sX, index=cellnames, columns=genenames)
         return sX, ix
+
 
     def subsample(self, pc, pt, sX=None, ix=None, verbose=False):
         """
@@ -360,18 +362,6 @@ class Trajectory():
                   'l1': l1, 'l2': l2, 'ldist': ldist, 'fcontrac': fcontrac, 'fexpand': fexpand, 'lsp': lsp, 
                   'dmax_psD': dmax_psD, 'dmax_sD': dmax_sD}
 
-        # if comp_deltas:
-        #     Delta_vals = psX.max(0) - psX.min(0)
-        #     Deltas = {'Delta%d' % i: Delta_vals[i] for i in np.arange(psX.shape[1])}
-        #     report = {**report, **Deltas}
-        #     report['Delta'] = pdist(psX).max()
-
-        # if comp_nn_dist:
-        #     report['nn_dist_sD'] = (sD + sD.max().max() * np.eye(nc)).min(0).mean()
-        #     report['nn_dist_nsD'] = (nsD + nsD.max().max() * np.eye(nc)).min(0).mean()
-        #     report['nn_dist_psD'] = (psD + psD.max().max() * np.eye(nc)).min(0).mean()
-        #     report['nn_dist_npsD'] = (npsD + npsD.max().max() * np.eye(nc)).min(0).mean()
-
         if comp_pseudo_corr or comp_exp_corr:
             try:
                 present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
@@ -379,6 +369,8 @@ class Trajectory():
                 sinks = present_groups[-1]
                 a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
                 pseudo = -a[source]
+
+                # pseudo = T.dw.get_pseudo(sX, smeta, pX=psX.values, plot=plot)
 
                 if plot:
                     plt.scatter(psX.values[:,0], psX.values[:,1], c=pseudo)
@@ -389,16 +381,7 @@ class Trajectory():
             except:
                 pseudo = None
                 print('Could not compute pseudotime')
-
-        
-        # if comp_covariance:
-        #     sC = T.ds.compute_covariance(sX)
-        #     report['cov_err'] = np.linalg.norm(self.C - sC)
-
-        # if comp_covariance_latent:
-        #     psC = T.ds.compute_covariance(psX)
-        #     report['cov_latent_err'] = np.linalg.norm(self.pC - psC)
-        
+ 
         if comp_exp_corr and (pseudo is not None):
             or_s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], smeta[pseudo_use], n_buckets=self.n_buckets, plot=plot)
             s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], pseudo, n_buckets=self.n_buckets, plot=plot)
@@ -407,87 +390,7 @@ class Trajectory():
             report['exp_corr'] = exp_corr
             report['or_exp_corr'] = or_exp_corr
 
-        # # compute change of pc direction
-        # if comp_pc_err:
-        #     pc_err = np.linalg.norm(pca.components_ - self.pca.components_, axis=1) #/ max_err
-        #     for pc_dim in np.arange(self.n_comp):
-        #         report[f'PC{pc_dim+1}_err'] = pc_err[pc_dim]
-
-        # if comp_reach and pca:
-        #     sX_all, _ = self.subsample_counts(pc=1, pt=pt) # not ideal bc subsample can change
-        #     _, lsX_all = self.preprocess(sX_all)
-        #     if verbose:
-        #         print('Computing reachability is appropriate only with all/most cells included')
-        #     psX_all = pca.transform(lsX_all) # applying pca on all cells
-        #     reach = T.ds.compute_reach(psX_all)
-        #     report['reach'] = reach
-        #     # if pca:
-        #     #     pX_all = pca.transform(X) #TODO: should be lX, right now appropriate only when there is no log1p
-        #     #     reach_org_proj = T.ds.compute_reach(pX_all)
-        #     #     report['reach_org_proj'] = reach_org_proj
-
-        # if comp_density:
-        #     # density_0 = T.ds.compute_density(sD)
-        #     density = T.ds.compute_density(sD)
-        #     pdensity = T.ds.compute_density(psD)
-        #     density_est = (np.log(nc) / nc) ** (1 / self.dim)
-        #     # report['density_0'] = density_0
-        #     report['density'] = density
-        #     report['pdensity'] = pdensity
-        #     report['density_est'] = density_est
-
-        # if comp_proj_err:
-        #     if verbose:
-        #         print('Assuming no log1p transform')
-        #     # projection = self.compute_projection(pca) # need left eigenvectors
-        #     projection = self.compute_projection(lsX) # need left eigenvectors
-        #     report['proj_err'] = np.linalg.norm(self.projection - projection, ord=2)
-
         return report
-
-
-    # def eval_dimensionality_perp(self, group_col, source, sinks, use_rep='log1p'):
-    #     """
-    #     Mean norm to subspace of source and sink cell types (Pusuluri et al. 2019)
-    #     """
-
-    #     # g - number of genes
-    #     # n - number of cells
-    #     # p - number of types
-
-    #     # get mean expression of source and sink cell types
-    #     X = self.lX if use_rep == 'log1p' else self.X
-    #     group_X = pd.concat((self.meta[group_col], X), axis=1)
-    #     group_mean = group_X.groupby(group_col).mean()
-    #     sinks = sinks if isinstance(sinks, list) else [sinks]
-    #     source_exp = group_mean.loc[source]
-    #     sinks_exp = group_mean.loc[sinks]
-
-    #     S = X.T # g x n - expression
-    #     g = S.shape[0]
-
-    #     # xsi = adata.X[[1,-1],:].T # g x p - cell type expression
-    #     # grp_ids = [source] + fates
-    #     xsi = np.vstack((source_exp, sinks_exp)).T # g x p - cell type mean expression
-
-    #     m = 1.0/g * np.dot(S.T, xsi) # n x p - similarity of expression to cell type expression
-
-    #     A = 1.0/g * np.dot(xsi.T, xsi) # p x p - similarity bw types
-    #     Ainv = np.linalg.pinv(A) # p x p - inverse A
-
-    #     a = np.dot(m, Ainv) # n x p - weighted similarity, 
-
-    #     S_proj = np.dot(xsi, a.T) # g x n - projection of expression on type ab 
-    #     S_perp = (S - S_proj) # remaining expression
-
-    #     S_perp_norm = np.linalg.norm(S_perp, axis=0)
-
-    #     # return np.mean(S_perp_norm)
-    #     a = pd.DataFrame(a, index=self.meta.index, columns=[source] + sinks)
-    #     S_perp_norm = pd.Series(S_perp_norm, index=self.meta.index)
-
-    #     return a, S_perp_norm
-
 
 
     def eval_linear_regression(self, group_col, source, sinks, use_rep='log1p', X=None, meta=None):
@@ -523,7 +426,6 @@ class Trajectory():
 
         S_perp_norm = np.linalg.norm(S_perp, axis=0)
 
-        # return np.mean(S_perp_norm)
         a = pd.DataFrame(wT, index=meta.index, columns=[source] + sinks)
         S_perp_norm = pd.Series(S_perp_norm, index=meta.index)
 
@@ -604,7 +506,6 @@ class Trajectory():
                           'log pc': np.log(pc), 'log pt': np.log(pt),  
                           **report}
                 L.append(report)
-
 
         L = pd.DataFrame(L)
         return L

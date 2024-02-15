@@ -1,205 +1,22 @@
-python run.py linear_rep0 --sample cells
-python run.py dendritic --sample cells
+
 python run.py hayashi --sample cells
 python run.py hepatoblast --sample cells
 python run.py fibroblasts --sample cells 
 python run.py hematopoiesis --sample cells
+python run.py beta --sample cells
 
-python run.py linear_rep0 --sample reads
-python run.py dendritic --sample reads
 python run.py hayashi --sample reads
 python run.py hepatoblast --sample reads
 python run.py fibroblasts --sample reads 
 python run.py hematopoiesis --sample reads
+python run.py beta --sample reads
 
-python run.py linear_rep0 --sample tradeoff
-python run.py dendritic --sample tradeoff
 python run.py hayashi --sample tradeoff
 python run.py hepatoblast --sample tradeoff
 python run.py fibroblasts --sample tradeoff
 python run.py hematopoiesis --sample tradeoff
+python run.py beta --sample tradeoff
 
-python run.py linear_rep0 --sample cells  --desc original_locs
-python run.py dendritic --sample cells  --desc original_locs
-python run.py hayashi --sample cells  --desc original_locs
-python run.py hepatoblast --sample cells  --desc original_locs
-python run.py fibroblasts --sample cells   --desc original_locs
-python run.py hematopoiesis --sample cells  --desc original_locs
-python run.py bending_map --sample cells  --desc original_locs
+python run.py hayashi --sample exp --B 0.0005
+python run.py beta --sample exp --B 0.000077
 
-python run.py linear_rep0 --sample reads  --desc distortion
-python run.py dendritic --sample reads  --desc distortion
-python run.py hayashi --sample reads  --desc distortion
-python run.py hepatoblast --sample reads  --desc distortion
-python run.py fibroblasts --sample reads   --desc distortion
-python run.py hematopoiesis --sample reads  --desc distortion
-
-python run.py linear_rep0 --sample reads  --desc covariance 
-python run.py dendritic --sample reads  --desc covariance 
-python run.py hayashi --sample reads  --desc covariance 
-python run.py hepatoblast --sample reads  --desc covariance 
-python run.py fibroblasts --sample reads   --desc covariance 
-python run.py hematopoiesis --sample reads  --desc covariance 
-
-python run.py linear_rep0 --sample cells  --desc covariance 
-python run.py dendritic --sample cells  --desc covariance 
-python run.py hayashi --sample cells  --desc covariance 
-python run.py hepatoblast --sample cells  --desc covariance 
-python run.py fibroblasts --sample cells   --desc covariance 
-python run.py hematopoiesis --sample cells  --desc covariance 
-
-
-python run.py hayashi --sample reads  --desc pc_err 
-python run.py curve --sample reads  --desc pc_err 
-python run.py hayashi --sample cells  --desc pc_err 
-python run.py curve --sample cells  --desc pc_err 
-
-# with nolog1p
-python run_nolog1p.py linear_rep0 --sample reads  --desc reach_uniform 
-python run_nolog1p.py dendritic --sample reads  --desc reach_uniform 
-python run_nolog1p.py hayashi --sample reads  --desc reach_uniform 
-python run_nolog1p.py hepatoblast --sample reads  --desc reach_uniform 
-python run_nolog1p.py fibroblasts --sample reads   --desc reach_uniform 
-python run_nolog1p.py hematopoiesis --sample reads  --desc reach_uniform
-
-# with original locations, expecting reach not to change, a to change with (logn/n)^1/d, and error to change with a
-python run_original.py linear_rep0 --sample cells  --desc reach_uniform 
-python run_original.py dendritic --sample cells  --desc reach_uniform 
-python run_original.py hayashi --sample cells  --desc reach_uniform 
-python run_original.py hepatoblast --sample cells  --desc reach_uniform 
-python run_original.py fibroblasts --sample cells   --desc reach_uniform 
-python run_original.py hematopoiesis --sample cells  --desc reach_uniform
-
-
-python run.py linear_rep0 --sample cells  --desc projcent 
-python run.py dendritic --sample cells  --desc projcent 
-python run.py hayashi --sample cells  --desc projcent 
-python run.py hepatoblast --sample cells  --desc projcent 
-python run.py fibroblasts --sample cells   --desc projcent 
-python run.py hematopoiesis --sample cells  --desc projcent
-
-python run.py linear_rep0 --sample reads  --desc projcent 
-python run.py dendritic --sample reads  --desc projcent 
-python run.py hayashi --sample reads  --desc projcent 
-python run.py hepatoblast --sample reads  --desc projcent 
-python run.py fibroblasts --sample reads   --desc projcent 
-python run.py hematopoiesis --sample reads  --desc projcent
-
-
-
-python run.py hayashi --sample tradeoffreads 
-python run.py beta --sample tradeoffreads 
-python run.py hepatoblast --sample tradeoffreads 
-python run.py fibroblasts --sample tradeoffreads  
-python run.py hematopoiesis --sample tradeoffreads
-
-
-
-
-
-
-python run.py hayashi --sample exp --desc mypseudo --B 0.0005
-python run.py beta --sample exp --desc mypseudo --B 0.000077
-
-python run.py hayashi --sample exp
-python run.py beta --sample exp
-python run.py dendritic --sample exp
-python run.py beta --sample exp --desc cpseudo
-
-python run.py linear_rep0 --sample exp --desc cpseudo
-
-    python run.py linear_rep0 --sample cells  --desc reach 
-    python run.py hayashi --sample cells  --desc reach 
-    python run.py hepatoblast --sample cells  --desc reach 
-
-
-python run.py prosstthayashi --sample reads  --desc reach_range
-python run.py prosstthayashi --sample cells  --desc reach_range
-python run.py prosstthayashi --sample tradeoff  --desc reach_range
-
-python run.py scvelo_pilot --sample tradeoff 
-python run.py scvelo_pilot --sample reads  --desc reach_range
-python run.py scvelo_pilot --sample cells  --desc reach_range
-
-python run.py hayashi_pilot --sample tradeoff 
-python run.py hayashi_pilot --sample reads  --desc reach_range
-python run.py hayashi_pilot --sample cells  --desc reach_range
-
-
-
-python run.py smprosstthayashi --sample reads  --desc reach_range --repeats 10
-python run.py smprosstthayashi --sample cells  --desc reach_range --repeats 10
-python run.py smprosstthayashi --sample tradeoff  --desc reach_range --repeats 10
-
-
-python run.py alpha --sample reads  --desc reach_range --repeats 10
-python run.py alpha --sample cells  --desc reach_range --repeats 10
-python run.py alpha --sample tradeoff  --desc reach_range --repeats 10
-
-python run.py beta --sample reads  --desc reach_range --repeats 10
-python run.py beta --sample cells  --desc reach_range --repeats 10
-python run.py beta --sample tradeoff  --desc reach_range --repeats 10
-
-python run.py scvelo --sample reads  --desc reach_range --repeats 10
-python run.py scvelo --sample cells  --desc reach_range --repeats 10
-python run.py scvelo --sample tradeoff  --desc reach_range --repeats 10
-
-
-
-
-
-python run.py linear_rep0 --sample reads  --desc reach_range 
-python run.py dendritic --sample reads  --desc reach_range 
-python run.py hayashi --sample reads  --desc reach_range 
-python run.py hepatoblast --sample reads  --desc reach_range 
-python run.py fibroblasts --sample reads   --desc reach_range 
-python run.py hematopoiesis --sample reads  --desc reach_range
-
-
-
-python run.py linear_rep0 --sample cells  --desc reach_uniform 
-python run.py dendritic --sample cells  --desc reach_uniform 
-python run.py hayashi --sample cells  --desc reach_uniform 
-python run.py hepatoblast --sample cells  --desc reach_uniform 
-python run.py fibroblasts --sample cells   --desc reach_uniform 
-python run.py hematopoiesis --sample cells  --desc reach_uniform
-
-python run.py linear_rep0 --sample reads  --desc reach_uniform 
-python run.py dendritic --sample reads  --desc reach_uniform 
-python run.py hayashi --sample reads  --desc reach_uniform 
-python run.py hepatoblast --sample reads  --desc reach_uniform 
-python run.py fibroblasts --sample reads   --desc reach_uniform 
-python run.py hematopoiesis --sample reads  --desc reach_uniform
-
-python run.py linear_rep0 --sample tradeoff  --desc distortion2 
-python run.py dendritic --sample tradeoff  --desc distortion2 
-python run.py hayashi --sample tradeoff  --desc distortion2 
-python run.py hepatoblast --sample tradeoff  --desc distortion2 
-python run.py fibroblasts --sample tradeoff   --desc distortion2 
-python run.py hematopoiesis --sample tradeoff  --desc distortion2
-
-
-
-
-
-python run.py hayashi --sample reads  --desc final
-python run.py beta --sample reads  --desc final 
-python run.py hepatoblast --sample reads  --desc final 
-python run.py fibroblasts --sample reads   --desc final 
-python run.py hematopoiesis --sample reads  --desc final
-
-python run.py hayashi --sample cells  --desc final
-python run.py beta --sample cells  --desc final 
-python run.py hepatoblast --sample cells  --desc final 
-python run.py fibroblasts --sample cells   --desc final 
-python run.py hematopoiesis --sample cells  --desc final
-
-python run.py hayashi --sample tradeoff  --desc final
-python run.py beta --sample tradeoff  --desc final 
-python run.py hepatoblast --sample tradeoff  --desc final 
-python run.py fibroblasts --sample tradeoff   --desc final 
-python run.py hematopoiesis --sample tradeoff  --desc final
-
-python run.py hayashi_uppilot --sample reads
-python run.py hayashi_uppilot --sample cells
-python run.py hayashi_uppilot --sample tradeoff

@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-from scipy.special import lambertw
 from scipy.optimize import curve_fit
 from ..plotting.saturation_model import SaturationModel
+
 epsilon = 10e-10
 
 

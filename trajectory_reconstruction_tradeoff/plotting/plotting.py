@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import altair as alt
-import matplotlib
 import gif
 import ipywidgets as widgets
 from ipywidgets import interact
@@ -10,8 +9,6 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trajectory_reconstruction_tradeoff.opt import find_min_nc
 from mpl_toolkits.mplot3d import Axes3D
-from sklearn import linear_model
-from matplotlib.collections import EllipseCollection
 import seaborn as sns
 from .plotting_configs import get_color_col
 import networkx as nx
@@ -19,7 +16,6 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.decomposition import PCA
 from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
-from .zero_linear_model import ZeroLinearModel
 from .saturation_model import SaturationModel
 from mycolorpy import colorlist as mcp
 
@@ -91,7 +87,6 @@ def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
 
     # Add a legend
     if color and legend:
-        # ax.legend(fontsize=legendsize)
         pos = ax.get_position()
         ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
         ax.legend(handletextpad=0.01,
@@ -136,7 +131,7 @@ def plot_2d(pX, meta=None, color=None, title='', fname=None, ax=None,
     colorlabel = color.title() if (colorlabel is None) and color else colorlabel
     
 
-    if (meta is not None) and (color):# in meta.columns):
+    if (meta is not None) and (color):
         df[colorlabel] = meta[color].values
         kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
 
