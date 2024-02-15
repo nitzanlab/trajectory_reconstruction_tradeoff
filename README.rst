@@ -7,25 +7,58 @@ Trajectory Reconstruction Tradeoff
    :width: 500px
    :align: center
 
-Considering the limited sequencing budget in single-cell RNA-sequencing experiments,
-we optimize here the tradeoff between number of cells, and its consequential number of reads per cell,
-in order to recover the trajectory of cells through temporal processes (e.g. cellular differentiation or reprogramming).
+Charting cellular trajectories over gene expression is key to understanding dynamic cellular processes and their underlying mechanisms. 
+While advances in single-cell RNA-sequencing technologies and  computational methods have pushed forward the recovery of such trajectories, trajectory inference remains a challenge due to the noisy, sparse, and high-dimensional nature of single-cell data. 
+This challenge can be alleviated by increasing either the number of cells sampled along the trajectory (breadth) or the sequencing depth, i.e. the number of reads captured per cell (depth). 
+Generally, these two factors are coupled due to an inherent breadth-depth tradeoff that arises when the sequencing budget is constrained due to financial or technical limitations. 
+Here we study the optimal allocation of a fixed sequencing budget to optimize the recovery of trajectory attributes. 
+
+Data
+----
+In the manuscript, we focus on five single-cell RNA-sequencing datasets encompassing differentiation of embryonic stem cells, pancreatic $\beta$ cells, hepatoblast and multipotent haematopoietic cells, as well as induced reprogramming of embryonic fibroblasts into neurons. 
+All were downloaded from \href{https://zenodo.org/record/1443566\#.YEExrpMzbDI}{https://zenodo.org/record/1443566\#.YEExrpMzbDI} in .rds format.
+We load and save separately the component of each dataset <dataset> as 'counts_<dataset>.csv', '<dataset>_cell_info.csv', and '<dataset>_milestone_network.csv' in R, see 'scripts/rds_to_csv.R'.
+See example datasets of mESC ('hayashi') and fibroblasts in 'datasets' folder.
+
+Reconstruction error for subsampling experiments
+------------------------------------------------
+We construe subsampling experiments with just cell(breadth) subsample, read (depth) subsample or with both being sampled under constant budgets. 
+
+For example (run from scripts folder):
+``python run.py hayashi --sample cells``
+``python run.py hayashi --sample reads``
+``python run.py hayashi --sample tradeoff``
+
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.png
+   :width: 150px
+   :align: left
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.png
+   :width: 150px
+   :align: center
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.png
+   :width: 150px
+   :align: right
+
+Analyzing results
+-----------------
+Empirical results reveal that trajectory reconstruction accuracy scales with the logarithm of either the breadth or depth of sequencing. 
+We additionally observe a power law relationship between the optimal number of sampled cells and the corresponding sequencing budget.
+See 'notebooks/reconstruction_results.ipynb' for example.
+
+Expression pattern analysis along the trajectory
+------------------------------------------------
+We further demonstrate the impact of the breadth-depth tradeoff on downstream analysis of expression patterns along linear trajectories.
+To compute the quality of expression pattern under subsampling, we use the following command:
+
+``python run.py hayashi --sample exp``
+
+We then plot the results in 'notebooks/expression_results.ipynb'.
 
 
 
-We test our analytical results on trajectories of diverse structures, for real and simulated single-cell datasets, and
-show improvement in inferring trajectory’s structure and temporal gene expression patterns.
-
-
-
-Reference
----------
-Noa Moriel, Edvin Memmet, and Mor Nitzan (2022), Optimal sequencing budget allocation for trajectory reconstruction,
-`bioRxiv <bioarxiv link>`_.
-
-Support
+Contact
 -------
-Feel free to submit an `issue <https://github.com/NitzanLab/trajectory_reconstruction_tradeoff/issues/new/choose>`_
-or send us an `email <mailto:email>`_.
-
-
+Please get in touch `email <mailto:noa.moriel@mail.huji.ac.il>`_.

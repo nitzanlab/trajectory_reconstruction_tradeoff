@@ -2,24 +2,19 @@
 import numpy as np
 import pandas as pd
 import altair as alt
-import matplotlib
 import gif
-import ipywidgets as widgets
-from ipywidgets import interact
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trajectory_reconstruction_tradeoff.opt import find_min_nc
 from mpl_toolkits.mplot3d import Axes3D
-from sklearn import linear_model
-from matplotlib.collections import EllipseCollection
 import seaborn as sns
 from .plotting_configs import get_color_col
 import networkx as nx
 from sklearn.neighbors import kneighbors_graph
 from sklearn.decomposition import PCA
-from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
-from .zero_linear_model import ZeroLinearModel
+from .saturation_model import SaturationModel
+from mycolorpy import colorlist as mcp
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -27,18 +22,16 @@ labelsize = 30
 ticksize = 25
 legendsize = 28
 
-
-
-
+# regression models
 models = {'linear': LinearRegression,
           'huber': HuberRegressor,
-          # 'ransac': RANSACRegressor,
-          'zerolinear': ZeroLinearModel
-}
+          'saturation': SaturationModel,
+          }
 
 def to_paper(pl):
     """
-    Beautify altair chart 
+    Beautify altair chart
+    :param pl: altair chart 
     """
     labelFontSize=15
     titleFontSize=20
@@ -68,7 +61,6 @@ def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
     
     ax_none = ax is None
     if ax_none:
-        # axes instance
         fig = plt.figure(figsize=(6,6))
         ax = Axes3D(fig, auto_add_to_figure=False)
         fig.add_axes(ax)
@@ -78,35 +70,20 @@ def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
     
     df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1]})
 
-    color = get_color_col(meta, color_col=color)
+    color = get_color_col(meta, color=color)
     colorlabel = color.title() if (colorlabel is None) and color else colorlabel
 
-    if (meta is not None) and color and palette:# in meta.columns):
+    if (meta is not None) and color and palette:
         df[colorlabel] = meta[color].values
         kwargs['c'] = df[colorlabel].map(palette)
-        # kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
 
     # plot
     ax.scatter(pX[:,0], pX[:,1], pX[:,2], **kwargs)
-    # ax.set_xlabel('X Label')
-    # ax.set_ylabel('Y Label')
-    # ax.set_zlabel('Z Label')
-
-    # # legend
-    # plt.legend(*sc.legend_elements(), bbox_to_anchor=(1.05, 1), loc=2)
-
-    # # save
-    # plt.savefig("scatter_hue", bbox_inches='tight')
-
-    # sns.scatterplot(data=df, x=xlabel, y=ylabel, ax=ax, **kwargs)
-    # ax.scatter(pX[:,0], pX[:,1], pX[:,2], s=1)
-    
     ax.set_title(title, fontsize=titlesize)
-    # ax.axis('off')
+    
 
     # Add a legend
     if color and legend:
-        # ax.legend(fontsize=legendsize)
         pos = ax.get_position()
         ax.set_position([pos.x0, pos.y0, pos.width, pos.height * 0.85])
         ax.legend(handletextpad=0.01,
@@ -147,11 +124,11 @@ def plot_2d(pX, meta=None, color=None, title='', fname=None, ax=None,
     
     df = pd.DataFrame({xlabel: pX[:,0], ylabel: pX[:,1]})
 
-    color = get_color_col(meta, color_col=color)
+    color = get_color_col(meta, color=color)
     colorlabel = color.title() if (colorlabel is None) and color else colorlabel
     
 
-    if (meta is not None) and (color):# in meta.columns):
+    if (meta is not None) and (color):
         df[colorlabel] = meta[color].values
         kwargs['hue'] = colorlabel if 'hue' not in kwargs.keys() else kwargs['hue']
 
@@ -180,6 +157,7 @@ def plot_2d(pX, meta=None, color=None, title='', fname=None, ax=None,
 def project(pX, n_comp=2):
     """
     Project onto PCA space
+    :param pX: cells reduced representation
     """
     pca = PCA(n_components=n_comp, svd_solver='full')
     ppX = pca.fit_transform(pX)
@@ -187,15 +165,16 @@ def project(pX, n_comp=2):
     ppX = pd.DataFrame(ppX, index=pX.index, columns=pcnames)
     return ppX
 
-def plot_project_pca2d(pX, n_comp=2, **kwargs):
+def plot_project_pca2d(pX, **kwargs):
     """
-    Projects and plots pca 2d
+    Projects and plots to 2d PCA space
+    :param pX: cells reduced representation
     """
-    ppX = project(pX, n_comp=n_comp)
+    ppX = project(pX, n_comp=2)
     plot_2d(ppX, **kwargs)
 
 
-def plot_spring_layout(pX=None, A=None, neighbors=2, meta=None, verbose=False, node_size=3, **kwargs):
+def plot_spring_layout(pX=None, A=None, neighbors=2, **kwargs):
     """
     Plots spring layout of the minimal-fully-connected kNN graph
     :param pX: cells reduced representation
@@ -214,25 +193,12 @@ def plot_spring_layout(pX=None, A=None, neighbors=2, meta=None, verbose=False, n
             pos[node] = pX.iloc[inode].values[:2]
     else:
         pos = nx.spring_layout(G)
-    nx.draw(G, pos, node_size=3, **kwargs) #width=edge_weight, 
+    nx.draw(G, pos, node_size=3, **kwargs) 
     plt.show()
 
-def plot_project_spring_layout(pX, n_comp=2, **kwargs):
-    ppX = project(pX, n_comp=n_comp)
-    plot_spring_layout(pX=ppX, **kwargs)
 
-
-
-
-
-
-
-
-
-
-
-def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel='Smoothed reconstruction error', 
-                  color_mean='navy', color_std='royalblue', color_min=None, plot_std=2, xcol_twin=None, twin_values=None,
+def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel=None, ylabel=None, 
+                  color_mean='slategray', color_std='slategray', color_min=None, plot_std=1, xcol_twin=None, twin_values=None,
                   ax=None, pc_opt=None, title=None, label='', groupby=None, 
                   labelsize=labelsize, ticksize=ticksize, titlesize=titlesize, verbose=False,
                   add_fit=False, add_R=False, model_type='huber', **kwargs):
@@ -272,6 +238,9 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
         ax.fill_between(x, np.array(y) + v * np.array(s_y), y, color=color_std, alpha=0.3/v)
         ax.fill_between(x, np.array(y) - v * np.array(s_y), y, color=color_std, alpha=0.3/v)
 
+    xlabel = xcol if xlabel is None else xlabel
+    ylabel = ycol if ylabel is None else ylabel
+
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
@@ -291,7 +260,6 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
 
     if xcol_twin is not None and xcol_twin in L.columns:
         ax_twin = ax.twiny()
-        # twin_data = L_grp[[xcol, xcol_twin]].mean()
         x2 = L_grp[xcol_twin].mean().values
         n = len(x2)
         n_ticks = 4
@@ -314,26 +282,25 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
 
         ax_twin.set_xlim(ax.get_xlim())
         ax_twin.set_xticks(new_tick_locations)
-        ax_twin.set_xticklabels(new_tick_values) # TODO: temp rounding
+        ax_twin.set_xticklabels(new_tick_values) 
         ax_twin.tick_params(axis='x', labelsize=ticksize)
         ax_twin.xaxis.label.set_size(labelsize)
-    
-        # ax_twin.set_xlabel(r"Modified x-axis: $1/(1+X)$")
-
-
 
     # add linear fit
     if add_fit:
         model_ = models[model_type]()
         model_.fit(L[[xcol]], L[ycol])
         if verbose:
-            print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
-        x_new = np.linspace(L[xcol].min(), L[xcol].max(), 100)
+            if model_.x0_ is None:
+                print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}')
+            else:
+                print(fr'{title}, coef: {model_.coef_}, int: {model_.intercept_}, saturation: {model_.x0_}')
+        x_new = np.linspace(L[xcol].min(), L[xcol].max(), 10)
         ax.plot(x_new, model_.predict(x_new.reshape(-1,1)), color='black', linewidth=4, linestyle='--')
 
         # add score
-        r = 2 # R^2 round factor
-        R = np.round(model_.score(x.reshape((-1,1)),y), r)
+        r = 2 #  round factor
+        R = np.round(model_.score(L[xcol].values.reshape((-1, 1)), L[ycol].values.reshape((-1, 1))), r) # assuming a single group
         kwargs_text = {'x': 0.3, 'y': 0.9, 'ha':'center', 'va':'center', 'fontsize':30}
         if add_R:
             ax.text(s=fr'$R^2$={R}', transform=ax.transAxes, **kwargs_text)
@@ -341,7 +308,7 @@ def plot_tradeoff(L, xcol='pc', ycol='l1', xlabel='Sampling probability', ylabel
         return model_
 
 
-def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
+def plot_tradeoff_experiments(L_tradeoff, plot_pc_opt=True, sharey=False, plot_pcs=True, xcol='pc', ycol='l1',
                             structures=[], color_groupby='trajectory type', colors={}, color='black', axs=None, title=None, **kwargs):
     """
     Plot tradeoff experiments
@@ -357,7 +324,6 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
     :param color_groupby: column to group by
     :param colors: dictionary of colors
     """
-    # L_tradeoff['log pc'] = np.log(L_tradeoff['pc'])
     Bs = L_tradeoff['B'].unique()
     L_tradeoff_grp = L_tradeoff.groupby([color_groupby])
     structures = list(L_tradeoff_grp.groups.keys()) if structures == [] else structures
@@ -380,7 +346,6 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
     istructure = 0
     for _,structure in enumerate(structures): # iterate over structures
         title = title if title is None else structure
-    # for istructure,(structure,L) in enumerate(L_tradeoff_grp): # iterate over structures
         if structure in L_tradeoff_grp.groups.keys():
             L = L_tradeoff_grp.get_group(structure)
         else:
@@ -394,18 +359,11 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
                     ax = axs[istructure, irepeat]
             else:
                 ax = axs
-            # if nrepeats == 1:
-            #     if nstructures == 1:
-            #         ax = axs
-            #     else:
-            #         ax = axs[istructure]
-            # else:
-            #     ax = axs[irepeat, istructure]
             
             for _,(B,ssL) in enumerate(sL.groupby('B')): # iterate over budgets
                 pc_opt = find_min_nc(ssL, xcol=xcol, ycol=ycol) if plot_pc_opt else None
                 plot_tradeoff(ssL, xcol=xcol, ycol=ycol, color_mean=color, color_std=color, 
-                label=repeat, ax=ax, plot_std=plot_std, pc_opt=pc_opt, title=title, **kwargs)
+                label=repeat, ax=ax, pc_opt=pc_opt, title=title, **kwargs)
         istructure += 1
 
     pcs = L_tradeoff[xcol].unique()
@@ -414,54 +372,7 @@ def plot_tradeoff_experiments(L_tradeoff, desc='', plot_std=0, plot_pc_opt=True,
         ax.scatter(pcs, np.zeros_like(pcs) + L_tradeoff['l1'].min())
         ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', 
         transform = ax.transAxes)
-    # plt.suptitle(desc)
     plt.tight_layout()
-    
-    # footnote = f'B:{Bs}\\npc{pcs}'
-    # plt.figtext(0.01, -0.3, footnote, fontsize=20)
-
-
-def smooth_tradeoff(L, rollby='pc', roll=4):
-    """
-    Smooth out curve by averaging across consequent values
-    :param L:
-    :param rollby: roll by column
-    :param roll: number of
-    """
-    # if there are multiple B
-    Bs = L['B'].unique()
-    L_per_B = []
-    for B in Bs:
-        sL = L[L['B'] == B]
-        msL = sL.groupby([rollby]).mean()
-        # msL['pc'] = msL.index
-        L_per_B.append(msL.rolling(roll).mean().iloc[roll-1:].reset_index())
-    rL = pd.concat(L_per_B)
-    return rL
-
-
-def check_increase_decrease(x, y, min_seq_locations=3, min_diff=1e-4):
-    """
-    Returns a vector specifying where function is decreasing or increasing (non-decreasing)
-    """
-    df = pd.DataFrame({'y':y, 'x': x})
-    df = df.groupby('x').mean().reset_index()
-    df.index = df['x']
-    df.sort_index(inplace=True)
-    
-    df['dy'] = np.nan
-    df['dy'].iloc[1:] = df.y.iloc[1:].values - df.y.iloc[:-1].values
-    df = df.iloc[1:]
-    # column for negative and positive
-    df['sign'] = np.where(df['dy'] < 0, 'decreasing', 'increasing')
-    df.loc[np.abs(df['dy']) < min_diff, 'sign'] = 'neither'
-    # consecutive groups
-    df['g'] = df['sign'].ne(df['sign'].shift()).cumsum()
-
-    vals = df['g'].value_counts()
-    vals = vals.index[vals.values >= min_seq_locations]
-    vals = list(vals)
-    return list(df[df['g'].isin(vals)]['sign'].unique())
 
 
 def write_roman(num):
@@ -535,6 +446,13 @@ def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname='',
     gif.save(frames, fname, duration=duration, unit=unit, between=between, **kwargs)
 
 def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
+    """
+    Plot downstream expression tradeoff
+    :param res: dataframe with columns: pc, l1, B, trajectory type, level_0
+    :param Pcs: list of PCs
+    :param ycol: column name for y axis
+    :param ylabel: label for y axis
+    """
     axis_nada = alt.Axis(grid=False, labels=False, ticks=False)
     scale_nz = alt.Scale(zero=False)
 
@@ -551,24 +469,27 @@ def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
     colors = [color_few_cells, color_med_cells, color_lots_cells, ]
     back_colors = [back_color_few_cells, back_color_med_cells, back_color_lots_cells, back_color_truth]
 
-    xlabel = ''#'Cell sampling probability (pc)'
-    x = alt.X('pc:O', #scale=alt.Scale(type='log', base=1.000001),
-              title=xlabel,)# axis=alt.Axis(grid=False, values=np.linspace(0,1, 6)))
-#     yticks = np.linspace(res[ycol].min(), res[ycol].max(), 6)
+    xlabel = ''
+    x = alt.X('pc:O', title=xlabel,)
     y = alt.Y(ycol + ':Q', axis=alt.Axis(grid=False, tickCount=6), scale=scale_nz, title=ylabel)
-    pl_all = alt.Chart(res, width=300, height=300).mark_boxplot(outliers=False).encode(x=x,
-                                                                         y=y,
-                                                                         color=alt.value(color_var))
-
-
+    pl_all = alt.Chart(res, width=300, height=300).mark_boxplot(outliers=False).encode(x=x, y=y, color=alt.value(color_var))
     pls = [pl_all]
 
     for i, nc in enumerate(Pcs):
-
-    #     print(df[sel2]['pc'].unique())
         pls.append(alt.Chart(res[res['pc'] == nc]).mark_boxplot(outliers=False).encode(x=x,
                                                                  y=y,
                                                                  color=alt.value(colors[i])))
 
     return to_paper(alt.layer(*pls))
-    # return alt.layer(*pls)
+    
+
+def get_colors_by_budget(Bs, cmap="PRGn"):
+    """
+    A colormap for budget values
+    :param Bs: list of budgets
+    """
+    nBs = len(Bs)
+    colors_for_budget = mcp.gen_color(cmap=cmap, n=nBs+5)
+    colors_for_budget = colors_for_budget[:int(np.ceil(nBs/2))] + colors_for_budget[-int(np.floor(nBs/2)):]
+    colors_by_budget = {B: colors_for_budget[i] for i, B in enumerate(Bs)}
+    return colors_by_budget

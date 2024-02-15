@@ -3,15 +3,31 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 
-def read_dataset(dataset, dirname):
+# dictionaries shortening datasets' descriptions
+shorten_dicts = {
+     'hepatoblast': {'hepatoblast/hepatocyte': 'h', 'cholangiocyte': 'c',},
+     'marrow': {'(Bone_Marrow_Mesenchyme)': ''},
+     'thymus': {'(Thymus)': '', 'T cell_': '', 'T cell': ''},
+     'muscle': {'muscle ': ''},
+     'embryos': {'embryonic ': ''},
+     'alpha': {'α-cell ': ''},
+     'beta': {'β-cell ': ''},
+     'astrocyte': {'age:': '', 'Day': 'day'},
+     'rib': {'Cartilage ': '', ' high(Neonatal-Rib)':'', 'cell_': '', '_':''},
+     'mesoderm': {'H7_derived_':'', 'H7_dreived':''},
+     }
+
+def read_dataset(dataset, dirname, shorten_dict=None):
     """
     Reads dataset
-    :param dataset:
-    :param dirname:
+    :param dataset: dataset name
+    :param dirname: directory name
+    :param shorten_dict: dictionary for shortening dataset descriptions
     :return:
-    - X
-    - D
-    - meta
+    X: expression matrix
+    D: distance matrix 
+    meta: metadata (dataframe with columns 'cell_id', 'milestone_id', 'group_id')
+    milestone_network: milestone network (dataframe with columns 'from', 'to', 'weight')
     """
     fname_counts = os.path.join(dirname, 'counts_%s.csv' % dataset)
     fname_dists = os.path.join(dirname, 'geodesic_%s.csv' % dataset)
@@ -33,17 +49,34 @@ def read_dataset(dataset, dirname):
             meta['milestone_id'] = meta['group_id']
     if 'branch' in meta.columns and 'milestone_id' not in meta.columns:
         meta['milestone_id'] = meta['branch']
+
+    if shorten_dict is not None:
+        milestones = meta['milestone_id'].unique()
+        milestone_shorten_dict = {}
+        for s in milestones:
+            milestone_shorten_dict[s] = s
+            for k,v in shorten_dict.items():
+                if k in milestone_shorten_dict[s]:
+                    milestone_shorten_dict[s] = milestone_shorten_dict[s].replace(k,v)
+        meta['milestone_id'] = meta['milestone_id'].map(milestone_shorten_dict)
+        milestone_network['from'] = milestone_network['from'].map(milestone_shorten_dict)
+        milestone_network['to'] = milestone_network['to'].map(milestone_shorten_dict)
+
     return X, D, meta, milestone_network
 
 
 def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
     """
-    Read and prepare counts and distance matrices from csv files
-    :param fname_counts:
-    :param fname_dists:
+    Given csv file names, reads data
+    :param fname_counts: expression matrix filename
+    :param fname_dists: distance matrix filename
+    :param fname_meta: metadata filename
+    :param fname_milestone: milestone network filename
     :return:
-        expression,
-        distances(read from file), if available
+    X: expression matrix
+    D: distance matrix
+    meta: metadata
+    milestone_network: milestone network
     """
     X = pd.read_csv(fname_counts, index_col=0)
     X.index = X.index.astype(str)
@@ -61,15 +94,13 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
 
     if os.path.isfile(fname_meta):
 
-        meta = pd.read_csv(fname_meta, index_col=0) # TODO: was 1!! standardize
+        meta = pd.read_csv(fname_meta, index_col=0) 
         if 'cell_id' in meta.columns:
             meta.index = meta['cell_id']
         meta.index = meta.index.astype(str)
         
         assert (meta.index == X.index).all()
 
-        
-    # TODO: convert milestone network to metadata?
     if os.path.isfile(fname_milestone):
         milestone_network = pd.read_csv(fname_milestone, index_col=0)
         # order data by milestone ordering
@@ -77,10 +108,3 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
         print('No milestone ordering provided')
     
     return X, D, meta, milestone_network
-
-if __name__ == '__main__':
-    dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'  # TODO: change to relative path
-    fname = 'hepatoblast'
-    fname_counts = os.path.join(dirname, 'counts_' + fname + '.csv')
-    fname_dists = os.path.join(dirname, 'geodesic_' + fname + '.csv')
-    X, D = read_data_from_csv(fname_counts=fname_counts, fname_dists=fname_dists)

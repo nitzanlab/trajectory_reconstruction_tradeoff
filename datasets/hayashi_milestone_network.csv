@@ -1,0 +1,5 @@
+"","from","to","length","directed"
+"1","00h","12h",1,TRUE
+"2","12h","24h",1,TRUE
+"3","24h","48h",2,TRUE
+"4","48h","72h",2,TRUE

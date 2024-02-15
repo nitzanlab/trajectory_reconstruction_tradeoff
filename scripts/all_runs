@@ -1,0 +1,22 @@
+
+python run.py hayashi --sample cells
+python run.py hepatoblast --sample cells
+python run.py fibroblasts --sample cells 
+python run.py hematopoiesis --sample cells
+python run.py beta --sample cells
+
+python run.py hayashi --sample reads
+python run.py hepatoblast --sample reads
+python run.py fibroblasts --sample reads 
+python run.py hematopoiesis --sample reads
+python run.py beta --sample reads
+
+python run.py hayashi --sample tradeoff
+python run.py hepatoblast --sample tradeoff
+python run.py fibroblasts --sample tradeoff
+python run.py hematopoiesis --sample tradeoff
+python run.py beta --sample tradeoff
+
+python run.py hayashi --sample exp --B 0.0005
+python run.py beta --sample exp --B 0.000077
+
