@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import gif
-import ipywidgets as widgets
-from ipywidgets import interact
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trajectory_reconstruction_tradeoff.opt import find_min_nc
@@ -14,7 +12,6 @@ from .plotting_configs import get_color_col
 import networkx as nx
 from sklearn.neighbors import kneighbors_graph
 from sklearn.decomposition import PCA
-from scipy import optimize
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
 from .saturation_model import SaturationModel
 from mycolorpy import colorlist as mcp
