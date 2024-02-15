@@ -14,4 +14,9 @@ geckodriver.log
 *.pyc
 *.gif
 notebooks/*
-scripts/all_runs
+scripts/*
+*egg-info/*
+*/trash/*
+datasets*
+.vscode/*
+.history/*

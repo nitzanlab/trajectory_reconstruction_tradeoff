@@ -1,28 +1,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-# from scipy.interpolate import UnivariateSpline
-#
-# def interp(X, knots=5):
-#     """
-#     Fits and predicts expression as UnivariateSpline
-#     :param X:
-#     :param knots:
-#     :return:
-#     """
-#     X_interp = pd.DataFrame(np.nan, index=X.index, columns=X.columns)
-#     for gcol in X.columns:
-#         idx = X[~X[gcol].isna()].index
-#         if len(idx) == 0:
-#             continue
-#         x = X.loc[idx].index
-#         y = X.loc[idx, gcol]
-#         f = UnivariateSpline(x, y, k=knots) #fill_value="extrapolate")kind=5, bounds_error=False
-#         X_interp[gcol] = f(X.index)
-#     return X_interp
 
 
-# Mean expression given groupings
 def get_mean_bucket_exp(X, pseudo, n_buckets=5, plot=False):
     """
     Compute the expression profile based on bucket assignment
@@ -32,10 +12,10 @@ def get_mean_bucket_exp(X, pseudo, n_buckets=5, plot=False):
     bucket = pd.qcut(pseudo, q=n_buckets, labels=np.arange(n_buckets), duplicates='drop')
     lX = np.log1p(X)
     tmp = pd.concat((lX, bucket), axis=1)
-    # log1p?
+    
     bucket_mean = tmp.groupby(bucket.name).mean()
     norm_bucket_mean = bucket_mean / bucket_mean.max(axis=0)
-    # TODO: how to handle???
+    
     norm_bucket_mean.fillna(0, inplace=True)
     if plot:
         ngenes = min(10, X.shape[1])
@@ -47,6 +27,11 @@ def get_mean_bucket_exp(X, pseudo, n_buckets=5, plot=False):
 
 def expression_correlation(X, sX):
     """
+    Compute the correlation between the expression and the reconstructed expression
+    X - expression
+    sX - reconstructed expression
+    :return: 
+    correlation
     """
     corr_list = []
     for g in X.columns:
