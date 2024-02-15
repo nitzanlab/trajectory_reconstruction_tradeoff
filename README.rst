@@ -25,28 +25,34 @@ Reconstruction error for subsampling experiments
 We construe subsampling experiments with just cell(breadth) subsample, read (depth) subsample or with both being sampled under constant budgets. 
 
 For example (run from scripts folder):
-``python run.py hayashi --sample cells``
-``python run.py hayashi --sample reads``
-``python run.py hayashi --sample tradeoff``
+```python run.py hayashi --sample cells```
+```python run.py hayashi --sample reads```
+```python run.py hayashi --sample tradeoff```
 
-.. table::
+.. .. table::
+..    :align: center
+
+..    +-----------------------+-----------------------+-----------------------+
+..    | **cell subsample**           | **read subsample**           | **tradeoff**           |
+..    +=======================+=======================+=======================+
+..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif                                                   |
+..    |    :width: 100%                                                           |
+..    |    :align: center                                                         |
+..    +-----------------------+-----------------------+-----------------------+
+..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif                                                   |
+..    |    :width: 100%                                                           |
+..    |    :align: center                                                         |
+..    +-----------------------+-----------------------+-----------------------+
+..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif                                                   |
+..    |    :width: 100%                                                           |
+..    |    :align: center                                                         |
+..    +-----------------------+-----------------------+-----------------------+
+
+**Title 2**
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif
    :align: center
-
-   +-----------------------+-----------------------+-----------------------+
-   | **cell subsample**           | **read subsample**           | **tradeoff**           |
-   +=======================+=======================+=======================+
-   | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif                                                   |
-   |    :width: 100%                                                           |
-   |    :align: center                                                         |
-   +-----------------------+-----------------------+-----------------------+
-   | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif                                                   |
-   |    :width: 100%                                                           |
-   |    :align: center                                                         |
-   +-----------------------+-----------------------+-----------------------+
-   | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif                                                   |
-   |    :width: 100%                                                           |
-   |    :align: center                                                         |
-   +-----------------------+-----------------------+-----------------------+
+   :width: 30%
 
 Analyzing results
 -----------------
