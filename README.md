@@ -33,9 +33,9 @@ For example (run from scripts folder):
     <td align="center"><b>tradeoff (both)</b></td>
   </tr>
   <tr>
-    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif" width="300"/></td>
-    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif" width="300"/></td>
-    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif" width="300"/></td>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif" width="200"/></td>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif" width="200"/></td>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif" width="200"/></td>
   </tr>
 </table>
 
