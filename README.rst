@@ -29,30 +29,19 @@ For example (run from scripts folder):
 ```python run.py hayashi --sample reads```
 ```python run.py hayashi --sample tradeoff```
 
-.. .. table::
-..    :align: center
 
-..    +-----------------------+-----------------------+-----------------------+
-..    | **cell subsample**           | **read subsample**           | **tradeoff**           |
-..    +=======================+=======================+=======================+
-..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif                                                   |
-..    |    :width: 100%                                                           |
-..    |    :align: center                                                         |
-..    +-----------------------+-----------------------+-----------------------+
-..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif                                                   |
-..    |    :width: 100%                                                           |
-..    |    :align: center                                                         |
-..    +-----------------------+-----------------------+-----------------------+
-..    | .. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif                                                   |
-..    |    :width: 100%                                                           |
-..    |    :align: center                                                         |
-..    +-----------------------+-----------------------+-----------------------+
-
-**Title 2**
-
-.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif
-   :align: center
-   :width: 30%
+<table>
+  <tr>
+    <td align="center"><b>cell subsample</b></td>
+    <td align="center"><b>read subsample</b></td>
+    <td align="center"><b>tradeoff (both)</b></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.gif" width="300"/></td>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.gif" width="300"/></td>
+    <td><img src="https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.gif" width="300"/></td>
+  </tr>
+</table>
 
 Analyzing results
 -----------------
