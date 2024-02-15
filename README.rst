@@ -28,6 +28,18 @@ For example:
 ``python run.py hayashi --sample reads  --desc example``
 ``python run.py hayashi --sample tradeoff  --desc example``
 
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pc.png
+   :width: 150px
+   :align: left
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_pt.png
+   :width: 150px
+   :align: center
+
+.. image:: https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/hayashi_tradeoff.png
+   :width: 150px
+   :align: right
+
 Analyzing results
 -----------------
 Empirical results reveal that trajectory reconstruction accuracy scales with the logarithm of either the breadth or depth of sequencing. 
@@ -39,7 +51,7 @@ Expression pattern analysis along the trajectory
 We further demonstrate the impact of the breadth-depth tradeoff on downstream analysis of expression patterns along linear trajectories.
 To compute the quality of expression pattern under subsampling, we use the following command:
 
-``python run.py hayashi --sample tradeoff --desc example --pattern``
+``python run.py hayashi --sample exp --desc example``
 
 We then plot the results in 'notebooks/fig4.ipynb'.
 

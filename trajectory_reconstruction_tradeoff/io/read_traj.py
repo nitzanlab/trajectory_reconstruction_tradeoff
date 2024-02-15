@@ -3,7 +3,7 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 
-
+# dictionaries shortening datasets' descriptions
 shorten_dicts = {
      'hepatoblast': {'hepatoblast/hepatocyte': 'h', 'cholangiocyte': 'c',},
      'marrow': {'(Bone_Marrow_Mesenchyme)': ''},
@@ -20,12 +20,14 @@ shorten_dicts = {
 def read_dataset(dataset, dirname, shorten_dict=None):
     """
     Reads dataset
-    :param dataset:
-    :param dirname:
+    :param dataset: dataset name
+    :param dirname: directory name
+    :param shorten_dict: dictionary for shortening dataset descriptions
     :return:
-    - X
-    - D
-    - meta
+    X: expression matrix
+    D: distance matrix 
+    meta: metadata (dataframe with columns 'cell_id', 'milestone_id', 'group_id')
+    milestone_network: milestone network (dataframe with columns 'from', 'to', 'weight')
     """
     fname_counts = os.path.join(dirname, 'counts_%s.csv' % dataset)
     fname_dists = os.path.join(dirname, 'geodesic_%s.csv' % dataset)
@@ -65,12 +67,16 @@ def read_dataset(dataset, dirname, shorten_dict=None):
 
 def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_milestone=None):
     """
-    Read and prepare counts and distance matrices from csv files
-    :param fname_counts:
-    :param fname_dists:
+    Given csv file names, reads data
+    :param fname_counts: expression matrix filename
+    :param fname_dists: distance matrix filename
+    :param fname_meta: metadata filename
+    :param fname_milestone: milestone network filename
     :return:
-        expression,
-        distances(read from file), if available
+    X: expression matrix
+    D: distance matrix
+    meta: metadata
+    milestone_network: milestone network
     """
     X = pd.read_csv(fname_counts, index_col=0)
     X.index = X.index.astype(str)
@@ -95,8 +101,6 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
         
         assert (meta.index == X.index).all()
 
-        
-    # TODO: convert milestone network to metadata?
     if os.path.isfile(fname_milestone):
         milestone_network = pd.read_csv(fname_milestone, index_col=0)
         # order data by milestone ordering
@@ -104,10 +108,3 @@ def read_data_from_csv(fname_counts, fname_dists=None, fname_meta=None, fname_mi
         print('No milestone ordering provided')
     
     return X, D, meta, milestone_network
-
-if __name__ == '__main__':
-    dirname = '/Users/nomo/PycharmProjects/Tree_Reconstruct_Limitations/datasets/'  # TODO: change to relative path
-    fname = 'hepatoblast'
-    fname_counts = os.path.join(dirname, 'counts_' + fname + '.csv')
-    fname_dists = os.path.join(dirname, 'geodesic_' + fname + '.csv')
-    X, D = read_data_from_csv(fname_counts=fname_counts, fname_dists=fname_dists)

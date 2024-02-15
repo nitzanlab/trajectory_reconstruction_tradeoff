@@ -2,65 +2,20 @@ import pandas as pd
 import seaborn as sns
 
 
-
-# Includes specific configurations of datasets tested here
-
-color_col_names = ['branch', 'milestone_id']
-
-
-colors_simul = {
-    'curve': 'orange',
-    'linear_rep0': 'navy', 
-    'bifur_at_1': 'blue', 
-    'bifur_at_2': 'deepskyblue',#'cyan', 
-    'bifur_at_3': 'aquamarine', 
-    'bifur_at_1_to_3': 'lightsalmon', 
-    'bifur_at_2_to_3': 'tomato', 
-    'bifur_at_1_to_4': 'red', 
-    }
-
-colors_real = {  
-    'hayashi': 'seagreen',
-    'dendritic': 'mediumseagreen',
-    'hepatoblast': 'plum',
-    'fibroblasts': 'orchid', 
-    'hematopoiesis': 'mediumorchid',
-    }
-
-
-def is_prosstt(dataset):
-    """
-    From saved datasets, returns true if was simulated with PROSSTT
-    """
-    return dataset in colors_simul.keys()
-
-colors_datasets = {**colors_simul, **colors_real}
-
-def get_group_cols(meta):
-    return list(set(meta.columns).intersection(color_col_names))
-
-def get_color_col(meta=None, color_col=None, verbose=False):
+def get_color_col(meta=None, color=None, verbose=False):
     """
     Determine color column
     """
-    if not isinstance(meta, pd.DataFrame):
-        if verbose:
-            print(f'metadata is of type {type(meta)}. metadata has to be a dataframe')
-        return None
-    color = color_col if color_col else get_group_cols(meta)
-    if len(color) != 1:
-        if verbose:
-            print(f'{len(color)} color columns were found.')
-        return None
-    color = color[0]
+    color = 'milestone_id' if color is None else color
     if color not in meta.columns:
-        if verbose:
-            print(f'Color column {color} is not in metadata.')
-        return None
+        raise ValueError(f'Color column {color} is not in metadata.')
     return color
     
-def generate_palette(traj, color_col=None):
-    color = get_color_col(traj.meta, color_col=color_col)
+def generate_palette(traj, color='milestone_id'):
+    """
+    Generate color palette for a trajectory
+    """
+    color = get_color_col(traj.meta, color=color)
     if color is None:
         palette = None
     else:
@@ -99,20 +54,5 @@ def get_traj_fignames(datasets):
     """
     traj_fignames = {k:k for k in datasets}
     traj_fignames['hayashi'] = 'mESC'
-    traj_fignames['linear_rep0'] = 'simulated'
     traj_fignames['scvelo'] = 'pancreas'
     return traj_fignames
-
-def get_traj_colors(datasets, default_color='black'):
-    """
-    Colors for datasets
-    """
-    colors = {}
-    for dataset in datasets:
-        colors[dataset] = colors_datasets[dataset] if dataset in colors_datasets.keys() else default_color
-    return colors
-
-# color_map = {'A': '#e6194b', 'B': '#3cb44b', 'C': '#ffe119', 'D': '#4363d8', 'E': '#f58231', 'F': '#911eb4',
-#              'G': '#46f0f0', 'H': '#f032e6', 'I': '#bcf60c', 'J': '#fabebe', 'K': '#008080', 'L': '#e6beff',
-#              'M': '#9a6324', 'N': '#fffac8', 'O': '#800000', 'P': '#aaffc3', 'Q': '#808000', 'R': '#ffd8b1',
-#              'S': '#000075', 'T': '#808080'}
