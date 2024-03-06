@@ -57,4 +57,4 @@ We then plot the results in 'notebooks/expression_results.ipynb'.
 
 ### Contact
 
-Please get in touch `email <mailto:noa.moriel@mail.huji.ac.il>`_.
+Please get in touch [email](mailto:noa.moriel@mail.huji.ac.il).
