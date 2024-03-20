@@ -19,8 +19,10 @@ Create a clean environment with conda using the environment.yml file from this r
 
 Activate the environment and install the package from parent directory:
 
-```conda activate traj```
-```pip install -e trajectory_reconstruction_tradeoff```
+```
+conda activate traj
+pip install -e trajectory_reconstruction_tradeoff
+```
 
 
 ## Data
@@ -35,9 +37,12 @@ See example datasets of mESC ('hayashi') and fibroblasts in 'datasets' folder.
 We construe subsampling experiments with just cell(breadth) subsample, read (depth) subsample or with both being sampled under constant budgets. 
 
 For example (run from scripts folder):
-```python run.py hayashi --sample cells```
-```python run.py hayashi --sample reads```
-```python run.py hayashi --sample tradeoff```
+
+```
+python run.py hayashi --sample cells
+python run.py hayashi --sample reads
+python run.py hayashi --sample tradeoff
+```
 
 <table>
   <tr>
