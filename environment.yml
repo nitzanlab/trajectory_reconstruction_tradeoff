@@ -1,19 +1,24 @@
 name: traj
 channels:
+  - conda-forge
   - defaults
 dependencies:
   - python=3.8
+  - pip
+  - numpy
   - notebook
+  - ipykernel
   - ca-certificates
   - certifi
   - openssl
   - scikit-learn
-  - altair
   - biopython
   - scanpy
-  - networkx
-  - altair_saver
-  - openpyxl
   - scipy
-pip:
-  - mycolorpy
+  - pip:
+    - palantir
+    - pyslingshot
+    - gif
+    - mycolorpy
+    - louvain
+    - openpyxl

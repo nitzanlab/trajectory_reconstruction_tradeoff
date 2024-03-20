@@ -4,13 +4,17 @@ import pandas as pd
 def compare_distances(D0, D, verbose=False, eps = 10e-5):
     """
     Compute error(deviation) between distances
-    :param D0: true distances
-    :param D: predicted distances
-    :return:
+    D0 - original distances
+    D - reconstructed distances
+
+    Returns:
         mean absolute error (l1)
         mean squared error (l2^2)
         mean squared error of log(1+x)
         mean correlation of distances
+        fraction of distances contracted
+        fraction of distances expanded
+        
     """
     if isinstance(D0, pd.DataFrame) and isinstance(D, pd.DataFrame):
         overlap = D0.index.intersection(D.index)

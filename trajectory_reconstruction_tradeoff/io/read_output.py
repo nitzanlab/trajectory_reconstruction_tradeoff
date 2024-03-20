@@ -12,6 +12,7 @@ def read_output(dataset, outdir, sample, exp_desc=''):
     L: saved subsampling results
     """
     fname = os.path.join(outdir, f'{dataset}_L_{sample}{exp_desc}.csv')
+    L = None
     if os.path.isfile(fname):
         L = pd.read_csv(fname, index_col=0)
 

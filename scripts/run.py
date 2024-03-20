@@ -44,35 +44,35 @@ if __name__ == '__main__':
     kwargs_traj = {}
     kwargs_tradeoff = {}
 
-
-    if sample == 'exp':
-        Bs = [B]
-        Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
-        Pc = Pc[Pc < 1]
-        Pt = None
-        kwargs_tradeoff = {'comp_exp_corr': True, 'comp_pseudo_corr': True,'pseudo_use':'Trajectory_idx'}
-
     # load trajectory
     X, D, meta, mn = T.io.read_dataset(dataset, datadir)
     traj = T.tr.Trajectory(X, meta=meta, milestone_network=mn,**kwargs_traj)
     
 
-    # sampling
+    # sampling configurations
     print(f'Sampling by {sample}')
     if sample == 'cells':
         Bs = [-1]
         Pc = Pvar = np.round(0.03 * 2 ** np.arange(0, 5, 0.3), 2)
         Pt = Pconst = np.ones_like(Pvar)
 
-    if sample == 'reads':
+    elif sample == 'reads':
         Bs = [-1]
         Pt = Pvar = 10 ** np.arange(-5, -0.1, 0.25)
         Pc = Pconst = np.ones_like(Pvar)
 
-    if sample == 'tradeoff':
+    elif sample == 'tradeoff':
         Bs = 10 ** np.linspace(-5, -1, 10)
         Pc = Pvar = np.arange(0.01, 0.9, 0.01)
         Pt = None
+
+    elif sample == 'exp':
+        Bs = [B]
+        Pc = np.round(0.03 * 2 ** np.arange(0, 5, 0.6), 2)
+        Pc = Pc[Pc < 1]
+        Pt = None
+        kwargs_tradeoff = {'comp_exp_corr': True, 'comp_pseudo_corr': True}
+        
     L_per_traj = []
     for B in Bs:
         print(B)

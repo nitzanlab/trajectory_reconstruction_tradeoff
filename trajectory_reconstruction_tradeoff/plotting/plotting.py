@@ -1,7 +1,6 @@
 
 import numpy as np
 import pandas as pd
-import altair as alt
 import gif
 from collections import OrderedDict
 import matplotlib.pyplot as plt
@@ -15,6 +14,9 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, HuberRegressor, RANSACRegressor
 from .saturation_model import SaturationModel
 from mycolorpy import colorlist as mcp
+    
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 plt.rcParams.update({'figure.max_open_warning': 0})
 titlesize = 35
@@ -28,22 +30,7 @@ models = {'linear': LinearRegression,
           'saturation': SaturationModel,
           }
 
-def to_paper(pl):
-    """
-    Beautify altair chart
-    :param pl: altair chart 
-    """
-    labelFontSize=15
-    titleFontSize=20
-    fontSize=20
-
-    pl = pl.configure_view(strokeOpacity=0)
-    pl = pl.configure_axis(labelFontSize=labelFontSize, titleFontWeight='normal', titleFontSize=titleFontSize)
-    pl = pl.configure_title(fontSize=fontSize)
-    pl = pl.configure_legend(titleFontSize=labelFontSize, labelFontSize=labelFontSize)
-
-    return pl
-    
+  
 def plot_3d(pX, meta=None, color=None, title='', fname=None, ax=None,
                xlabel = 'PC1', ylabel = 'PC2', colorlabel=None, legend=True, legendsize=legendsize, titlesize=titlesize, palette=None, dazim=90, delev=-20, **kwargs):
     """
@@ -445,42 +432,60 @@ def generate_gif(df, frameby='pc', xcol='PC1', ycol='PC2', fname='',
 
     gif.save(frames, fname, duration=duration, unit=unit, between=between, **kwargs)
 
-def plot_tradeoff_dw(res, Pcs, ycol, ylabel):
+
+def plot_tradeoff_dw(res, pcs_highlight, ycol, xlabel=r'$p_c$', ylabel='', title='', add_legend=False, fontsize=20, ax=None):
     """
-    Plot downstream expression tradeoff
+    Plot downstream expression tradeoff using seaborn with an optional Axes argument.
     :param res: dataframe with columns: pc, l1, B, trajectory type, level_0
-    :param Pcs: list of PCs
+    :param pcs_highlight: list of pcs_highlight
     :param ycol: column name for y axis
     :param ylabel: label for y axis
+    :param ax: Matplotlib Axes object (optional). If None, plt.gca() will be used.
     """
-    axis_nada = alt.Axis(grid=False, labels=False, ticks=False)
-    scale_nz = alt.Scale(zero=False)
+    res = res.copy()
 
+    # Define colors
     color_var = '#b1b1b1'
-    color_few_cells = '#df755b'
-    color_med_cells = '#5bb844'
-    color_lots_cells = '#7997dc'
+    pcs = res['pc'].unique()
+    color_map = {pc: '#b1b1b1' for pc in pcs} # Default color
+    color_map[pcs_highlight[0]] = '#df755b'  # Few cells
+    color_map[pcs_highlight[1]] = '#5bb844'  # Medium cells
+    color_map[pcs_highlight[2]] = '#7997dc'  # Lots of cells
 
-    back_color_truth = '#d8d8d8'
-    back_color_few_cells = '#fde7e2'
-    back_color_med_cells = '#e2f7df'
-    back_color_lots_cells = '#eaf0fc'
+    # Filter na values (notify user)
+    if res[ycol].isna().sum() > 0:
+        print(f'Warning: {ycol} contains {res[ycol].isna().sum()} NA values. These will be removed.')
+        res = res.dropna(subset=[ycol])
+    
+    # Use given Axes or get the current Axes
+    if ax is None:
+        ax = plt.gca()
 
-    colors = [color_few_cells, color_med_cells, color_lots_cells, ]
-    back_colors = [back_color_few_cells, back_color_med_cells, back_color_lots_cells, back_color_truth]
+    # Plot each group
+    for pc in pcs:
+        sns.boxplot(x='pc', y=ycol, data=res[res['pc'] == pc], palette=[color_map[pc]], hue='pc', legend=False,
+                    showfliers=False, ax=ax)  # Use 'ax=ax' to draw on the specified Axes
 
-    xlabel = ''
-    x = alt.X('pc:O', title=xlabel,)
-    y = alt.Y(ycol + ':Q', axis=alt.Axis(grid=False, tickCount=6), scale=scale_nz, title=ylabel)
-    pl_all = alt.Chart(res, width=300, height=300).mark_boxplot(outliers=False).encode(x=x, y=y, color=alt.value(color_var))
-    pls = [pl_all]
+    # Beautify the plot
+    ax.set_xlabel(xlabel, fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontsize=fontsize)
+    
+    # ax.set_title('Downstream Expression Tradeoff', fontsize=20)
+    ax.tick_params(axis='x', labelsize=15)
+    ax.tick_params(axis='y', labelsize=15)
 
-    for i, nc in enumerate(Pcs):
-        pls.append(alt.Chart(res[res['pc'] == nc]).mark_boxplot(outliers=False).encode(x=x,
-                                                                 y=y,
-                                                                 color=alt.value(colors[i])))
+    # Reduce number of ticks
+    ax.xaxis.set_major_locator(plt.MaxNLocator(4))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(3))
 
-    return to_paper(alt.layer(*pls))
+    # Adjust legend
+    handles = [plt.Rectangle((0,0),1,1, color=color_map[pc]) for pc in pcs_highlight]
+    labels = pcs_highlight
+    if add_legend:
+        ax.legend(handles, labels, title='Pcs', fontsize=15)
+    
+    ax.set_title(title, fontsize=fontsize)
+
     
 
 def get_colors_by_budget(Bs, cmap="PRGn"):

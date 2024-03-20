@@ -6,6 +6,14 @@ import matplotlib.pyplot as plt
 import trajectory_reconstruction_tradeoff as T
 from sklearn.decomposition import PCA
 
+import random
+random.seed(20)
+np.random.seed(20)
+from numpy.random import default_rng
+
+rng = default_rng()  # Creates a new random number generator
+
+
 epsilon = 10e-10
 
 def unique_list(seq):
@@ -19,19 +27,18 @@ class Trajectory():
     Trajectory object
     """
 
-    def __init__(self, X, D=None, meta=None, milestone_network=None, group_col='milestone_id', outdir=None, 
-    do_preprocess=True, do_log1p=True,  do_sqrt=False, do_original_locs=False, n_comp=10, do_hvgs=False, n_hvgs=100, name=''):
+    def __init__(self, X, D=None, meta=None, milestone_network=None, group_col='milestone_id', 
+    do_preprocess=True, do_log1p=True,  do_sqrt=False, do_full_locs=False, n_comp=10, name=''):
         """Initialize the tissue using the counts matrix and, if available, ground truth distance matrix.
-        X      -- counts matrix (cells x genes)
-        D      -- if available, ground truth cell-to-cell distances (cells x cells)
-        meta   -- other available information per cell
-        outdir  -- folder path to save the plots and data
-        do_preprocess -- if False skips complete preprocessing step
-        do_log1p -- if to perform log1p transformation transformation
-        do_sqrt -- if to perform sqrt transformation transformation
-        do_original_locs -- if to use original("true") cell locations
-        do_hvgs -- if True, use highly variable genes to reduce the dimensionality of the expression matrix
-        n_hvgs -- number of highly variable genes to use
+        X                   -- counts matrix (cells x genes)
+        D                   -- ground truth cell-to-cell distances (cells x cells)
+        meta                -- other available information per cell (using 'milestone_id' for group orderings)
+        milestone_network   -- a milestone network dataframe with columns 'from', 'to' with milestone_id values to indicate milestone graph connections
+        group_col           -- column name in meta to use for group ordering
+        do_preprocess       -- if False skips complete preprocessing step
+        do_log1p            -- if to perform log1p transformation transformation
+        do_sqrt             -- if to perform sqrt transformation transformation
+        do_full_locs        -- if to use cell locations from full data
         n_comp -- number of components for PCA
         name -- optional saving of dataset name
         """
@@ -83,42 +90,35 @@ class Trajectory():
         # save configs
         self.X = X
         self.do_preprocess = do_preprocess
-        self.do_original_locs = do_original_locs
+        self.do_full_locs = do_full_locs
         if do_log1p and do_sqrt:
             ValueError('Should do either log1p or sqrt for preprocess')
         self.do_log1p = do_log1p
         self.do_sqrt = do_sqrt
         self.n_comp = n_comp
         self.pX = None
-        self.do_hvgs = do_hvgs
-        self.n_hvgs = n_hvgs
         self.name = name
-        self.outdir = outdir
-        
-        if self.outdir is not None:
-            if not os.path.exists(self.outdir):
-                os.makedirs(self.outdir)
-
+    
         # preprocess
-        if self.do_hvgs:
-            self.hvgs, self.ihvgs = self.get_hvgs(n_hvgs=self.n_hvgs) # computing hvgs one on full data
         self.pX, self.lX, self.pca = self.preprocess(self.X, return_pca=True)
         
         self.dim = None
         self.P = None 
         if D is None:
-            D, P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
+            D, n_neighbors, P = T.ds.get_pairwise_distances(self.pX, return_predecessors=True)
             self.P = P
 
         self.D = D
+        self.n_neighbors = n_neighbors
         self.milestone_network = milestone_network
         self.meta = meta if meta is not None else pd.DataFrame(index=cellnames)
-        self.meta['Trajectory_idx'] = np.arange(self.ncells)
+        self.meta.loc[:,'Trajectory_idx'] = np.arange(self.ncells)
         
         # for expression analysis
-        self.exp_corr_hvgs = None
+        self.pseudo_df = None
+        self.comp_exp_genes = None
         self.n_buckets = None
-        self.buckets_mean = None
+        self.method_buckets_mean = None
 
     
     def preprocess(self, X, verbose=False, return_pca=False):
@@ -126,9 +126,10 @@ class Trajectory():
         Standard preprocess
         Optional count transformation (log1p or sqrt),
         followed dimensionality reduction (highly variable genes or PCA)
-        :param X: expression counts (cells x genes)
-        :param return_pca: return PCA object
-        :return: 
+        X - expression counts (cells x genes)
+        return_pca - return PCA object
+        
+        Returns:
         pX - transformed and reduced expression
         lX - transformed expression
         """
@@ -138,8 +139,8 @@ class Trajectory():
         pca = None
         do_preprocess = self.do_preprocess
 
-        # use the original cell locations (similar to without pp but can be a latent representation)
-        if (self.do_original_locs) and (self.pX is not None):
+        # use the full cell locations (similar to without pp but can be a latent representation)
+        if (self.do_full_locs) and (self.pX is not None):
             lX = self.lX.loc[X.index]
             pX = self.pX.loc[X.index]
             pca = self.pca
@@ -158,29 +159,27 @@ class Trajectory():
                 lX = np.sqrt(X)
 
             # reduce dimensions
-            if self.do_hvgs:
-                if verbose:
-                    print('hvgs representation')
-                pX = lX.loc[:, self.hvgs]
-            else:
-                # pca computation
-                pca = PCA(n_components=self.n_comp)
-                pX = pca.fit_transform(lX)
-                pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
-                pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
-        
+            pca = PCA(n_components=self.n_comp)
+            pX = pca.fit_transform(lX)
+            pcnames = ['PC%d' % (i+1) for i in np.arange(pX.shape[1])]
+            pX = pd.DataFrame(pX, index=X.index, columns=pcnames)
+    
         if return_pca:
             return pX, lX, pca
 
         return pX, lX
 
 
-    def get_hvgs(self, n_hvgs=1000, perc_top_hvgs=None, **kwargs):
+    def get_genes(self, n_genes=50, perc_top_hvgs=0.1, **kwargs):
         """
-        Uses Scanpy highly_variable_genes computation
-        :return:
+        Get genes highly expressed and variable
+        n_genes - number of genes to select
+        perc_top_hvgs - percentage of top highly variable genes to consider
+
+        Returns:
+        hvgs - list of highly variable genes
         """
-        n_hvgs = int(self.ngenes * perc_top_hvgs) if perc_top_hvgs is not None else n_hvgs
+        n_hvgs = int(self.ngenes * perc_top_hvgs) 
         adata = sc.AnnData(self.X)
         sc.pp.log1p(adata)
         sc.pp.highly_variable_genes(adata, n_top_genes=n_hvgs, **kwargs)
@@ -188,22 +187,27 @@ class Trajectory():
         ihvgs = np.where(adata.var['highly_variable'])[0]
         hvgs = list(adata.var.iloc[ihvgs]['genename'])
         
-        return hvgs, ihvgs
+        # select genes with high expression
+        hvgs_mean = self.X[hvgs].mean()
+        n_hhvgs = min(n_genes, len(hvgs)) # min(50, len(hvgs))
+        hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
+        return hvgs
 
 
     def subsample_counts(self, pc, pt):
         """
         Subsample cells and reads
-        :param X: expression counts
-        :param pc: cell capture probability
-        :param pt: transcript capture probability
-        :return:
+        X - expression counts
+        pc - cell capture probability
+        pt - transcript capture probability
+        
+        Returns:
             subsampled expression
             index of subsampled cells
         """
         n = int(self.ncells * pc)
         if n < self.ncells:
-            ix = list(np.random.choice(self.cellnames, n, replace=False))
+            ix = list(rng.choice(self.cellnames, n, replace=False))
         elif n == self.ncells:
             ix = self.cellnames
         elif n > self.ncells:
@@ -223,15 +227,16 @@ class Trajectory():
     def subsample(self, pc, pt, sX=None, ix=None, verbose=False):
         """
         Subsample cells and reads
-        :param pc: cell capture probability
-        :param pt: transcript capture probability
-        :param ix: index of cells to subsample
-        :return:sX, psX, lsX, psD, sD, psP, ix, pca
+        pc - cell capture probability
+        pt - transcript capture probability
+        ix - index of cells to subsample
+        
+        Returns:sX, psX, lsX, psD, sD, psP, ix, pca
         sX - subsampled expression
         psX - subsampled reduced expression
         lsX - subsampled transformed expression
         psD - subsampled reduced distances
-        sD - subsampled original distances
+        sD - subsampled full distances
         psP - subsampled reduced predecessors
         ix - index of subsampled cells
         pca - pca transformation
@@ -241,27 +246,28 @@ class Trajectory():
         else:
             if sX is None:
                 sX = self.X.loc[ix, :]
-            
+
 
         sD = self.D.loc[ix][ix]  # subsampled ground truth pairwise distances
         sD_max = sD.max().max()
         sD = sD / sD_max
 
         psX, lsX, pca = self.preprocess(sX, return_pca=True)
-        psD, psP = T.ds.get_pairwise_distances(psX, return_predecessors=True, verbose=verbose) 
+        psD, sn_neighbors, psP = T.ds.get_pairwise_distances(psX, return_predecessors=True, verbose=verbose) 
         
-        return sX, psX, lsX, psD, sD, psP, ix, pca
+        return sX, psX, lsX, psD, sn_neighbors, sD, psP, ix, pca
 
 
 
     def downsample_params(self, B, Pc=None, Pt=None, min_reads=20, verbose=False):
         """
         Filtering downsampling params
-        :param B: sequencing budget
-        :param Pc: cell downsample probabilities
-        :param Pt: read downsample probabilities
-        :param min_reads: minimum number of reads per cell on average
-        :return:
+        B - sequencing budget
+        Pc - cell downsample probabilities
+        Pt - read downsample probabilities
+        min_reads - minimum number of reads per cell on average
+        
+        Returns:
         dws_params - dataframe of subsampling experiments
         """
         subsample = 'both'
@@ -323,26 +329,77 @@ class Trajectory():
 
         return dws_params
 
+    @staticmethod
+    def compute_pseudotime(X, meta, group_col, group_order, n_neighbors, verbose=False):
+        """
+        Compute pseudotime for each method
+        X - expression
+        meta - metadata
+        group_col - column name in meta to use for group ordering
+        group_order - order of groups
+        n_neighbors - number of neighbors for pseudotime methods
+        
+        Returns:
+        pseudo_df - dataframe of pseudotime values
+        """
+        pseudo_df = pd.DataFrame(index=meta.index)
+        # intervening, setting neighbors to at least 5
+        min_n_neighbors = 5
+        if n_neighbors < min_n_neighbors and X.shape[0] > min_n_neighbors:
+            n_neighbors = min_n_neighbors
+            print(f'Setting n_neighbors to {min_n_neighbors}')
+        try:
+            pseudo_df['regression'] = T.dw.get_regression(X=X, meta=meta, group_col=group_col, group_order=group_order, verbose=verbose)
+        except:
+            print('Could not compute regression')
 
-    def evaluate(self, sX, psX, lsX, psD, sD, psP, ix, pca, pc, pt, 
-                comp_pseudo_corr=False, pseudo_use='dpt',
-                comp_exp_corr=False, verbose=False, plot=False,):
+        try:
+            pseudo_df['component1'] = T.dw.get_component1(X=X, meta=meta, group_col=group_col, group_order=group_order, verbose=verbose)
+        except:
+            print('Could not compute component1')
+
+        # try:
+        #     pseudo_df['palantir_pseudotime'] = T.dw.get_palantir_pseudotime(X=X, meta=meta, group_col=group_col, group_order=group_order, n_neighbors=n_neighbors, verbose=verbose)
+        # except:
+        #     print('Could not compute palantir_pseudotime')
+
+        try:
+            pseudo_df['dpt'] = T.dw.get_dpt(X=X, meta=meta, group_col=group_col, group_order=group_order, n_neighbors=n_neighbors, verbose=verbose)
+        except:
+            print('Could not compute dpt')
+
+        try:
+            pseudo_df['paga_pseudotime'] = T.dw.get_paga_pseudotime(X=X, meta=meta, group_col=group_col, group_order=group_order, n_neighbors=n_neighbors, verbose=verbose)
+        except:
+            print('Could not compute paga_pseudotime')
+
+        # try:
+        #     pseudo_df['slingshot_pseudotime'] = T.dw.get_slingshot_pseudotime(X=X, meta=meta, verbose=verbose)
+        # except:
+        #     print('Could not compute slingshot_pseudotime')
+
+        if verbose:
+            print('Pseudotime methods:', pseudo_df.columns)
+            
+        return pseudo_df
+
+        
+
+    def evaluate(self, sX, psX, lsX, psD, sn_neighbors, sD, psP, ix, pca, pc, pt, 
+                comp_pseudo_corr=False, comp_exp_corr=False, comp_exp_genes=None, verbose=False, plot=False,):
         """
         Computes statistics of downsampled data
-        :param sX: sampled expression
-        :param psX: latent representation of sampled expression
-        :param psD: distances of latent representation of sampled expression
-        :param sD: original distances of sampled data
-        :param psP: 
-        :param ix: index of sampled cells
-        :param comp_deltas: whether to compute side of each PC (Delta)
-        :param comp_nn_dist: whether to compute nearest neighbor distances
-        :param comp_pseudo_corr: whether to compute pseudotime correlation
-        :param comp_exp_corr: 
-        :param comp_vertex_length:
-        :param comp_covariance: compare covariance of gene expression space
-        :param comp_covariance_latent: compare covariance of latent space
-        :param comp_pc_err: compare PC error
+        sX - sampled expression
+        psX - latent representation of sampled expression
+        lsX - transformed expression of sampled expression (log-transformed)
+        psD - distances of latent representation of sampled expression
+        sn_neighbors - number of neighbors for fully-connected graph
+        sD - full distances of sampled data
+        psP - predecessors of latent representation of sampled expression
+        ix - index of sampled cells
+        comp_pseudo_corr - whether to compute pseudotime correlation
+        comp_exp_corr - whether to compute expression correlation
+        comp_exp_genes - optional list of genes to save bucket expression for
         """
         nc = sX.shape[0]
         nr = sX.sum(1).mean()
@@ -361,88 +418,60 @@ class Trajectory():
                   'dmax_psD': dmax_psD, 'dmax_sD': dmax_sD}
 
         if comp_pseudo_corr or comp_exp_corr:
-            try:
-                present_groups = [g for g in self.group_order if g in smeta[self.group_col].unique()]
-                source = present_groups[0]
-                sinks = present_groups[-1]
-                a, _ = self.eval_linear_regression(X=lsX, meta=smeta, group_col=self.group_col, source=source, sinks=sinks)
-                pseudo = -a[source]
+            spseudo_df = self.compute_pseudotime(X=sX, meta=smeta, group_col=self.group_col, group_order=self.group_order, n_neighbors=sn_neighbors, verbose=verbose)
+            for method in spseudo_df.columns:
+                corr = np.corrcoef(self.pseudo_df.loc[ix, method], spseudo_df[method])[0, 1]
+                report[method + '_corr'] = corr
+            
+        if comp_exp_corr:
+            for method in spseudo_df.columns:
+                print(method)
+                try:
+                    ordered_s_buckets_mean = T.dw.get_mean_bucket_exp(self.X.loc[ix, self.comp_exp_genes], self.pseudo_df.loc[ix, method], n_buckets=self.n_buckets, plot=plot)
+                    ordered_exp_corr = T.dw.expression_correlation(self.method_buckets_mean[method], ordered_s_buckets_mean)
+                    report[method + '_ordered_exp_corr'] = ordered_exp_corr
 
-                # pseudo = T.dw.get_pseudo(sX, smeta, pX=psX.values, plot=plot)
+                    s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.comp_exp_genes], spseudo_df[method], n_buckets=self.n_buckets, plot=plot)
+                    exp_corr = T.dw.expression_correlation(self.method_buckets_mean[method], s_buckets_mean)
+                    report[method + '_exp_corr'] = exp_corr
+                except:
+                    print(f'Could not compute expression correlation for {method}')
 
-                if plot:
-                    plt.scatter(psX.values[:,0], psX.values[:,1], c=pseudo)
-                
+        # report bucket expression for each gene in comp_exp_genes with each method
+        if comp_exp_genes is not None:
+            comp_exp_genes = list(set(comp_exp_genes).intersection(self.X.columns))
+            for method in spseudo_df.columns:
+                try:
+                    ordered_s_buckets_mean = T.dw.get_mean_bucket_exp(self.X.loc[ix,comp_exp_genes], self.pseudo_df.loc[ix, method], n_buckets=self.n_buckets, plot=plot)
+                    for gene in comp_exp_genes:
+                        for b in np.arange(self.n_buckets):
+                            report[f'{method}_{gene}_{b}_ordered_exp'] = ordered_s_buckets_mean[gene].values[b]
 
-                dpt_corr = np.corrcoef(smeta[pseudo_use], pseudo)[0, 1]
-                report['dpt_corr'] = dpt_corr
-            except:
-                pseudo = None
-                print('Could not compute pseudotime')
- 
-        if comp_exp_corr and (pseudo is not None):
-            or_s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], smeta[pseudo_use], n_buckets=self.n_buckets, plot=plot)
-            s_buckets_mean = T.dw.get_mean_bucket_exp(sX[self.exp_corr_hvgs], pseudo, n_buckets=self.n_buckets, plot=plot)
-            or_exp_corr = T.dw.expression_correlation(self.buckets_mean, or_s_buckets_mean)
-            exp_corr = T.dw.expression_correlation(self.buckets_mean, s_buckets_mean)
-            report['exp_corr'] = exp_corr
-            report['or_exp_corr'] = or_exp_corr
-
+                    s_buckets_mean = T.dw.get_mean_bucket_exp(sX[comp_exp_genes], spseudo_df[method], n_buckets=self.n_buckets, plot=plot)
+                    for gene in comp_exp_genes:
+                        for b in np.arange(self.n_buckets):
+                            report[f'{method}_{gene}_{b}_exp'] = s_buckets_mean[gene].values[b]
+                except:
+                    print(f'Could not compute expression pattern for genes {comp_exp_genes}, {method}')
+            
         return report
 
 
-    def eval_linear_regression(self, group_col, source, sinks, use_rep='log1p', X=None, meta=None):
-        """
-        Mean norm to subspace of source and sink cell types (Pusuluri et al. 2019)
-        """
-
-        # g - number of genes
-        # n - number of cells
-        # p - number of types
-
-        # get mean expression of source and sink cell types
-        X = (self.lX if use_rep == 'log1p' else self.X) if X is None else X
-        meta = self.meta if meta is None else meta
-        group_X = pd.concat((meta[group_col], X), axis=1)
-        group_mean = group_X.groupby(group_col).mean()
-        sinks = sinks if isinstance(sinks, list) else [sinks]
-        source_exp = group_mean.loc[source]
-        sinks_exp = group_mean.loc[sinks]
-
-        # w - a (n x p)
-        # A - xsi (g x p)
-        # y - S (g x n)
-        
-        y = X.T # g x n - expression
-        A = np.vstack((source_exp, sinks_exp)).T # g x p - cell type mean expression
-
-        # w^T = y^TA(A^TA)^(-1) 
-        wT = np.dot(y.T, np.dot(A, np.linalg.pinv(np.dot(A.T,A))))
-
-        S_proj = np.dot(A, wT.T) # g x n - projection of expression on type ab 
-        S_perp = (y - S_proj) # remaining expression
-
-        S_perp_norm = np.linalg.norm(S_perp, axis=0)
-
-        a = pd.DataFrame(wT, index=meta.index, columns=[source] + sinks)
-        S_perp_norm = pd.Series(S_perp_norm, index=meta.index)
-
-        return a, S_perp_norm
-
     def compute_tradeoff(self, B, Pc=None, Pt=None, repeats=50, verbose=False, plot=False,
-                        comp_pseudo_corr=False, pseudo_use='dpt', 
-                        comp_exp_corr=False, 
-                        hvgs=None, n_buckets=5, **kwargs):
+                        comp_pseudo_corr=False, comp_exp_corr=False, comp_exp_genes=None, comp_pseudo_gt=None,
+                        n_buckets=5, **kwargs):
         """
         Compute reconstruction error for subsampled data within budget opt
-        :param X: counts data
-        :param D_true: geodesic distances
-        :param B: counts budget
-        :param Pc: cell capture probabilities
-        :param repeats: number of repeats
-        :param verbose: print messages
-        :param plot: plot reduced expression for each set of downsample params
-        :return:
+        X - counts data
+        D_true - geodesic distances
+        B - counts budget
+        Pc - cell capture probabilities
+        repeats - number of repeats
+        verbose - print messages
+        comp_exp_genes - optional list of genes to save bucket expression for
+        plot - plot reduced expression for each set of downsample params
+        
+        Returns:
             dataframe with sampling params and errors
         """
 
@@ -450,59 +479,56 @@ class Trajectory():
 
         # pre-compute for entire data
         if comp_pseudo_corr or comp_exp_corr:
-            if pseudo_use == 'dpt':
-
-                # self.meta[pseudo_use] = T.dw.get_pseudo(self.X, self.meta, pX=self.pX.values, plot=plot)
-                
-                source = self.group_order[0]
-                sinks = self.group_order[-1]
-                a, _ = self.eval_linear_regression(group_col=self.group_col, source=source, sinks=sinks)
-                self.meta[pseudo_use] = -a[source]
-                
-                if plot:
-                    plt.scatter(self.pX.values[:,0], self.pX.values[:,1], c=self.meta[pseudo_use])
+            # for all methods, set meta[comp_pseudo_gt] as ground truth pseudotime
+            if comp_pseudo_gt is not None:
+                if comp_pseudo_gt in self.meta.columns:
+                    methods = ['regression', 'component1', 'palantir_pseudotime', 'dpt', 'paga_pseudotime', 'slingshot_pseudotime']
+                    self.pseudo_df = pd.DataFrame(index=self.meta.index)
+                    for m in methods:
+                        self.pseudo_df[m] = self.meta[comp_pseudo_gt]
+                else:
+                    ValueError(f'No column {comp_pseudo_gt} in meta')
+            else:    
+                # compute with each method a "ground truth" pseudotime
+                self.pseudo_df = self.compute_pseudotime(self.X, self.meta, self.group_col, self.group_order, n_neighbors=self.n_neighbors, verbose=verbose)
 
         if comp_exp_corr:
             # select genes for reconstruction evaluation
-            if self.exp_corr_hvgs is None:
+            if self.comp_exp_genes is None:
 
-                hvgs = self.get_hvgs(perc_top_hvgs=0.10)[0]
-
-                # select genes with high expression
-                hvgs_mean = self.X[hvgs].mean()
-                n_hhvgs = min(50, len(hvgs))
-                self.exp_corr_hvgs = list(hvgs_mean.sort_values()[-n_hhvgs:].index)
+                self.comp_exp_genes = self.get_genes()
 
                 if verbose:
-                    print('Using %d genes' % len(self.exp_corr_hvgs))
+                    print('Using %d genes' % len(self.comp_exp_genes))
             self.n_buckets = n_buckets
-            self.buckets_mean = T.dw.get_mean_bucket_exp(self.X[self.exp_corr_hvgs], self.meta[pseudo_use], n_buckets=self.n_buckets, plot=plot)
+
+            self.method_buckets_mean = {}
+            for method in self.pseudo_df.columns:
+                try:
+                    self.method_buckets_mean[method] = T.dw.get_mean_bucket_exp(self.X[self.comp_exp_genes], self.pseudo_df[method], n_buckets=self.n_buckets, plot=plot)
+                except:
+                    print(f'Could not compute expression pattern for {method}')
 
         # evaluate subsampled data
         L = []
-        for k in range(repeats):
-            if verbose:
-                print(k)
-            for _, row in dws_params.iterrows():
-
-                pc = row['pc']
-                pt = row['pt']
+        for _, row in dws_params.iterrows():
+            pc = row['pc']
+            pt = row['pt']
+            for k in range(repeats):
+                if verbose:
+                    print(k)
 
                 # sample
-                try:
-                    subsample_result = self.subsample(pc, pt, verbose=verbose)
-                except np.linalg.LinAlgError as err:
-                    if verbose:
-                        print(f'When downsampling with cell probability {pc} and read probability {pt}, got LinAlgError.')
-                    continue
+                subsample_result = self.subsample(pc, pt, verbose=verbose)
                 
                 report = self.evaluate( *subsample_result, pc=pc, pt=pt, 
-                                        comp_pseudo_corr=comp_pseudo_corr, pseudo_use=pseudo_use,
+                                        comp_pseudo_corr=comp_pseudo_corr, comp_exp_genes=comp_exp_genes, 
                                         comp_exp_corr=comp_exp_corr, verbose=verbose, plot=plot, **kwargs)
                          
                 report = {'pc': pc, 'pt': pt, 'B': B, 
                           'log pc': np.log(pc), 'log pt': np.log(pt),  
                           **report}
+                
                 L.append(report)
 
         L = pd.DataFrame(L)

@@ -2,13 +2,26 @@
 
 # Trajectory Reconstruction Tradeoff
 
-![Trajectory Reconstruction Tradeoff](https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.png)
+![Trajectory Reconstruction Tradeoff](https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.pdf)
 
 Charting cellular trajectories over gene expression is key to understanding dynamic cellular processes and their underlying mechanisms. 
 While advances in single-cell RNA-sequencing technologies and  computational methods have pushed forward the recovery of such trajectories, trajectory inference remains a challenge due to the noisy, sparse, and high-dimensional nature of single-cell data. 
 This challenge can be alleviated by increasing either the number of cells sampled along the trajectory (breadth) or the sequencing depth, i.e. the number of reads captured per cell (depth). 
 Generally, these two factors are coupled due to an inherent breadth-depth tradeoff that arises when the sequencing budget is constrained due to financial or technical limitations. 
 Here we study the optimal allocation of a fixed sequencing budget to optimize the recovery of trajectory attributes. 
+
+## Installation
+Clone this repository.
+
+Create a clean environment with conda using the environment.yml file from this repository:
+
+```conda env create -f environment.yml```
+
+Activate the environment and install the package from parent directory:
+
+```conda activate traj```
+```pip install -e trajectory_reconstruction_tradeoff```
+
 
 ## Data
 
@@ -50,7 +63,7 @@ See 'notebooks/reconstruction_results.ipynb' for example.
 We further demonstrate the impact of the breadth-depth tradeoff on downstream analysis of expression patterns along linear trajectories.
 To compute the quality of expression pattern under subsampling, we use the following command:
 
-```python run.py hayashi --sample exp```
+```python run.py hayashi --sample exp --B 0.0006```
 
 We then plot the results in 'notebooks/expression_results.ipynb'.
 

@@ -17,6 +17,5 @@ python run.py fibroblasts --sample tradeoff
 python run.py hematopoiesis --sample tradeoff
 python run.py beta --sample tradeoff
 
-python run.py hayashi --sample exp --B 0.0005
+python run.py hayashi --sample exp --B 0.0006
 python run.py beta --sample exp --B 0.000077
-
