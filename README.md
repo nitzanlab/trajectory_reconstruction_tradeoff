@@ -2,7 +2,7 @@
 
 # Trajectory Reconstruction Tradeoff
 
-![Trajectory Reconstruction Tradeoff](https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.pdf)
+![Trajectory Reconstruction Tradeoff](https://github.com/nitzanlab/trajectory_reconstruction_tradeoff/raw/main/.images/fig1.png)
 
 Charting cellular trajectories over gene expression is key to understanding dynamic cellular processes and their underlying mechanisms. 
 While advances in single-cell RNA-sequencing technologies and  computational methods have pushed forward the recovery of such trajectories, trajectory inference remains a challenge due to the noisy, sparse, and high-dimensional nature of single-cell data. 
